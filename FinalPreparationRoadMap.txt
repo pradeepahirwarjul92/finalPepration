@@ -1,0 +1,4426 @@
+-------------- Phase 1 — Core Java ---------------
+
+1. Java fundamentals
+
+Master:
+
+# JVM, JDK, JRE
+
+First understand the relationship:
+                 JDK
+        ┌───────────────────┐
+        │ Development Tools  │
+        │                    │
+        │ javac              │
+        │ javadoc            │
+        │ jar                │
+        │ jdb                │
+        │                    │
+        │      JRE           │
+        │  ┌──────────────┐  │
+        │  │ JVM          │  │
+        │  │              │  │
+        │  │ Java Runtime │  │
+        │  └──────────────┘  │
+        └────────────────────┘
+		
+JVM
+
+JVM = Java Virtual Machine	
+
+It executes Java bytecode.	
+
+Suppose:
+
+public class Hello {
+
+    public static void main(String[] args) {
+        System.out.println("Hello");
+    }
+}
+
+Compile:
+
+javac Hello.java
+
+You get:
+
+The .class file contains bytecode.
+
+Then:
+
+java Hello
+
+The JVM loads and executes the bytecode.
+
+Flow
+
+Hello.java
+    |
+    | javac
+    v
+Hello.class
+    |
+    | JVM
+    v
+Machine instructions
+    |
+    v
+CPU
+
+This is one reason Java is called:
+	Write Once, Run Anywhere
+
+The bytecode can run on different operating systems as long as an appropriate JVM exists.
+
+	
+2. JVM Internal Architecture
+For senior interviews, know this:
+
+JVM
+│
+├── Class Loader Subsystem
+│
+├── Runtime Data Areas
+│   ├── Heap
+│   ├── Java Stack
+│   ├── Method Area / Metaspace
+│   ├── PC Register
+│   └── Native Method Stack
+│
+├── Execution Engine
+│   ├── Interpreter
+│   ├── JIT Compiler
+│   └── Garbage Collector
+│
+└── JNI
+
+Class Loader
+When you execute:
+
+java MyApplication
+
+JVM needs to load classes.
+
+Class loading roughly involves:
+
+Loading
+   ↓
+Linking
+   ├── Verification
+   ├── Preparation
+   └── Resolution
+   ↓
+Initialization
+
+For example:
+
+User user = new User();
+
+Before JVM can create User, the User class must be loaded/initialized as required.
+
+
+3. JDK
+
+JDK = Java Development Kit
+
+It is used to develop Java applications.
+
+It contains tools such as:
+
+javac
+java
+jar
+javadoc
+jdb
+jcmd
+jstack
+jmap
+
+For backend development, some useful diagnostic tools include:
+
+jps
+jstack
+jmap
+jcmd
+jconsole
+
+For example:
+jps - can show running Java processes.
+
+| Tool       | Main purpose            | Typical question it answers                              |
+| ---------- | ----------------------- | -------------------------------------------------------- |
+| `jps`      | Find Java processes     | **Which Java application is running?**                   |
+| `jstack`   | Thread dump             | **What are my threads doing? Is there a deadlock?**      |
+| `jmap`     | Heap analysis           | **What objects are consuming memory?**                   |
+| `jcmd`     | General JVM diagnostics | **Give me JVM information / thread / heap / GC details** |
+| `jconsole` | GUI monitoring          | **Can I visually monitor the JVM?**                      |
+
+
+                 Java Application
+                        |
+        +---------------+---------------+
+        |               |               |
+       jps            jstack           jmap
+        |               |               |
+   Find process     Find threads     Find memory
+                        |
+                      jcmd
+                        |
+              Advanced diagnostics
+                        |
+                    jconsole
+                        |
+                  GUI monitoring
+				  
+
+jps — Java Process Status
+				  
+What is it?
+jps means Java Process Status.
+It lists Java processes running on your machine.
+
+Example: jps
+
+Output: 
+12540 MyApplication
+15320 Jps
+
+Here:
+12540  -> JVM Process ID (PID)
+MyApplication -> Java application
+
+
+Why use jps?
+
+Before using tools like jstack, jmap, or jcmd, you usually need the PID of the Java application.
+
+For example:
+jps
+You find:
+12540 MyApplication
+
+
+jstack — Thread Dump
+
+What is it?
+
+jstack generates a thread dump of a running JVM.
+
+Why do we need thread dumps?
+
+Suppose your Spring Boot application is running but users report:
+
+"API is hanging."
+
+CPU may be high, or requests may simply be waiting.
+
+You need to know:
+
+What are the threads doing?
+
+That's where jstack helps.
+
+Detecting deadlock
+	One of the most useful things about thread dumps is identifying deadlocks.
+
+
+jstack may report something like:
+	
+	
+CPU troubleshooting with jstack
+
+Suppose:
+
+CPU = 100%
+
+You can:
+top
+
+
+Find the high-CPU process.
+Then:
+jps
+
+Find Java PID.
+
+Then:
+
+jstack <PID>
+
+Take multiple thread dumps and compare them.
+This can help identify the thread responsible for excessive CPU.	
+
+
+jmap — Heap / Memory Analysis : 
+
+jmap is primarily used for heap analysis.
+
+Think:
+jstack -> Threads
+jmap   -> Memory / Heap
+
+
+Why use jmap?
+
+Suppose production reports: java.lang.OutOfMemoryError: Java heap space
+You want to know: 
+
+Which objects are consuming my heap?
+
+jmap can help you inspect heap usage and generate a heap dump.
+
+
+## heap vs Heap dump
+The core difference is that the heap is a live, dynamic region of memory where 
+a running application stores objects, whereas a heap dump is a static snapshot file of 
+that memory captured at a specific point in time for troubleshooting
+
+
+Heap dump
+
+One of the most important uses is generating a heap dump:
+
+jmap -dump:format=b,file=heap.hprof <PID>
+
+You get:
+heap.hprof
+
+
+This can then be analyzed using tools such as:
+
+Eclipse MAT
+VisualVM
+JProfiler
+YourKit
+
+
+What can a heap dump tell you?
+
+For example:
+java.util.HashMap
+        2.1 GB
+
+byte[]
+        1.4 GB
+
+java.lang.String
+        500 MB
+
+com.company.Order
+        300 MB
+		
+You may discover:
+
+HashMap
+   ↓
+contains millions of objects
+   ↓
+objects never removed
+   ↓
+memory leak
+
+
+
+	
+
+
+
+ ### Stack vs Heap
+ 
+*Stack :  Every Java thread has its own JVM stack.
+
+When a method executes:
+
+void calculate() {
+    int x = 10;
+}
+
+a stack frame is created for that method invocation.
+
+Conceptually:
+
+Thread
+ |
+ v
+Stack
+ |
+ +-- calculate() frame
+       |
+       +-- x
+	   
+
+When the method returns:
+	 calculate()
+	 
+its stack frame is removed.
+
+Important
+
+Stack is:
+
+Thread-specific
+		-	Used for method execution
+		-	Contains stack frames
+		-	Contains local variables/references
+		-	Contains operand stack information
+		-	Generally much smaller than heap
+		
+
+*Heap -   The heap is the main memory area where Java objects are allocated.
+
+Example: User user = new User();
+
+The User object is allocated on the heap.
+
+Conceptually:
+Stack
+
+user
+ |
+ | reference
+ v
+
+Heap
+
++----------------+
+| User object    |
+| name           |
+| age            |
++----------------+
+
+Heap is shared among threads.
+
+This is important.
+
+Thread 1 ─┐
+Thread 2 ─┼──→ Shared Heap
+Thread 3 ─┘
+
+Therefore concurrency issues often involve shared heap objects.
+
+| Stack                                     | Heap                      |
+| ----------------------------------------- | ------------------------- |
+| Per thread                                | Shared between threads    |
+| Method execution                          | Objects                   |
+| Stack frames                              | Object memory             |
+| Local variables/references                | Instance fields           |
+| Automatically removed when method returns | Managed by GC             |
+| Smaller                                   | Generally larger          |
+| StackOverflowError                        | OutOfMemoryError possible |
+
+
+
+ ### Java memory model
+This is often confused with JVM memory areas.
+ 
+It defines rules around:
+	-	Visibility
+	-	Ordering
+	-	Atomicity
+	-	Happens-before
+	-	Interaction between threads and shared memory
+ 
+
+## Pass-by-value : Java is always pass-by-value.
+When you call a method, Java creates a copy of the argument's value and gives that copy to the method.
+
+
+void change(int x) {
+    x = 100;
+}
+
+public static void main(String[] args) {
+    int a = 10;
+
+    change(a);
+
+    System.out.println(a);
+}
+
+Output: 10
+
+Why?
+main()
+   a = 10
+    |
+    | copy value 10
+    ↓
+change()
+   x = 10
+
+inside change(): x = 100;
+Only x changes. a remains 10.
+   
+
+
+### Immutable objects
+
+An immutable object cannot change its state after creation.
+
+Example: 
+
+-	String
+-	Integer
+-	Long
+-	BigDecimal
+
+Conceptually: 
+
+Object created
+      ↓
+state fixed
+      ↓
+cannot change
+
+
+ ** How to Create Immutable Class
+ 
+public final class Employee {
+
+    private final int id;
+    private final String name;
+
+    public Employee(int id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+}
+
+
+Important rules:
+ 
+Rule 1 : Make class: final
+Rule 2 : Fields: private final
+Rule 3 : No setters.
+Rule 4 : Initialize fields through constructor.
+Rule 5 : Defensive copying for mutable fields.
+
+
+ ** Defensive Copy
+
+This is senior-level interview material.
+
+Suppose:
+
+class Employee {
+
+    private final Date joiningDate;
+
+    public Employee(Date joiningDate) {
+        this.joiningDate = joiningDate;
+    }
+
+    public Date getJoiningDate() {
+        return joiningDate;
+    }
+}
+
+This is not truly immutable.
+
+Why?
+
+Date is mutable.
+
+Caller can do:
+
+Date date = new Date();
+
+Employee e = new Employee(date);
+
+date.setTime(...);
+
+Now the Employee's internal state changed.
+
+** Correct Defensive Copy
+
+public Employee(Date joiningDate) {
+    this.joiningDate = new Date(joiningDate.getTime());
+}
+
+public Date getJoiningDate() {
+    return new Date(joiningDate.getTime());
+}
+
+Now callers cannot directly modify the internal object.
+
+With modern Java, prefer immutable date/time types such as:
+
+LocalDate
+LocalDateTime
+Instant
+
+where appropriate.
+ 
+
+
+## Object cloning
+
+Java provides: Cloneable
+
+and:  Object.clone()
+
+Example:
+
+class Employee implements Cloneable {
+
+    int id;
+    String name;
+
+    @Override
+    public Employee clone() throws CloneNotSupportedException {
+        return (Employee) super.clone();
+    }
+}
+
+
+Then:
+Employee e1 = new Employee();
+Employee e2 = e1.clone();
+
+
+## Shallow Copy
+class Employee implements Cloneable {
+
+    int id;
+    Address address;
+
+    @Override
+    public Employee clone() throws CloneNotSupportedException {
+        return (Employee) super.clone();
+    }
+}
+
+
+Both employees share the same Address.
+
+That's shallow copy.
+
+## Deep Copy
+
+Deep copy creates separate nested objects.
+e1
+ |
+ +---- address → Address A
+
+
+e2
+ |
+ +---- address → Address B
+
+ 
+
+
+
+2. OOP
+
+##1. Encapsulation
+Uses : 
+1. Protect object data
+	private double balance;  
+
+Other classes cannot directly modify it.
+	
+2. Control how data is changed
+public void deposit(double amount) {
+    if (amount > 0) {
+        balance += amount;
+    }
+}
+
+You can enforce business rules.
+
+3. Hide implementation details
+A caller knows:
+account.deposit(1000);
+
+but doesn't need to know how the balance is internally updated.
+
+
+4. Improve maintainability
+If the internal implementation changes, callers don't necessarily need to change.
+
+5. Implement business validation
+public void setAge(int age) {
+    if (age >= 18) {
+        this.age = age;
+    }
+}
+
+Interview line
+
+Encapsulation protects object state and provides controlled access to that state through methods.
+
+##2. Inheritance
+1. Code reuse 
+2. Create an IS-A relationship
+3. Method overriding
+4. Enable runtime polymorphism
+5. Create hierarchical models
+
+##3. Polymorphism
+1. Runtime flexibility
+2. Loose coupling
+3. Easy to add new implementations
+4. Method overloading
+5. Framework extensibility
+
+##4. Abstraction
+Meaning: Expose what an object does while hiding how it does it.
+
+1. Hide implementation complexity
+2. Define a contract
+3. Reduce coupling
+4. Make systems easier to extend
+5. Useful for layered architecture
+
+| Concept           | Main purpose       | Key idea                      |
+| ----------------- | ------------------ | ----------------------------- |
+| **Encapsulation** | Protect data       | **How to control access?**    |
+| **Inheritance**   | Reuse/relationship | **IS-A**                      |
+| **Polymorphism**  | Different behavior | **One interface, many forms** |
+| **Abstraction**   | Hide complexity    | **What, not how**             |
+
+
+##5. Composition : One object contains another object and strongly owns its lifecycle/behavior.
+
+Example:
+
+class Engine {
+
+    void start() {
+        System.out.println("Engine started");
+    }
+}
+
+
+class Car {
+
+    private final Engine engine;
+
+    public Car() {
+        this.engine = new Engine();
+    }
+}
+
+
+Here:
+
+Car
+ |
+ └── Engine
+
+The Car creates and owns the Engine.
+
+This is composition.
+
+
+Inheritance:
+
+Car IS-A Vehicle
+
+Composition:
+
+Car HAS-A Engine
+
+
+
+##6. Association
+Association means:
+
+Two objects have a relationship with each other.
+
+Example:
+
+class Teacher {
+}
+
+class Student {
+}
+
+A teacher teaches students.
+
+Teacher ───────── Student
+
+The objects can exist independently.
+
+Teacher teacher = new Teacher();
+Student student = new Student();
+
+Neither necessarily owns the lifecycle of the other.
+
+
+
+
+##7. Aggregation
+
+Aggregation is a specialized form of association representing a whole-part relationship, 
+but the part can exist independently.
+
+
+
+Interview level:
+
+Why prefer composition over inheritance?
+
+Suppose you write:
+
+class Payment {
+
+    void pay() {
+    }
+
+    void refund() {
+    }
+}
+
+
+Then:
+class CashPayment extends Payment {
+}
+
+But suppose your business rule says:  Cash payment cannot be refunded through the system.
+
+A better design might be:
+
+interface Payment {
+    void pay();
+}
+
+and:
+
+interface Refundable {
+    void refund();
+}
+
+Then:
+
+class CreditCardPayment implements Payment, Refundable {
+
+    public void pay() {
+    }
+
+    public void refund() {
+    }
+}
+
+while:
+
+class CashPayment implements Payment {
+
+    public void pay() {
+    }
+}
+
+Now only refundable payments implement:
+
+Refundable
+
+This is capability-based design, and it naturally avoids many LSP problems.
+
+
+
+
+You might end up doing:
+
+"Explain Liskov Substitution Principle using the Bird/Penguin example."
+
+A strong 8-year-experience answer would be:
+
+LSP states that a subtype should be substitutable for its parent type without changing the correctness or expected behavior of the program.
+
+For example, if Bird has a fly() method and Penguin extends Bird, then Bird bird = new Penguin(); bird.fly(); becomes problematic because penguins cannot fly.
+
+The problem isn't that Penguin isn't a Bird. The problem is that Bird has been given a behavior that isn't applicable to all birds.
+
+Instead, I would keep common behavior such as eat() in Bird and model flying as a separate capability, such as a FlyingBird interface. Then Eagle and Sparrow can implement FlyingBird, while Penguin doesn't.
+
+This keeps the abstraction behaviorally correct and allows subtypes to safely substitute their parent types.
+
+Remember this one line:
+
+LSP is not about whether the child "IS-A" parent in the real world; it is about whether the child can safely behave like the parent in the software design.
+
+
+Interface default methods
+
+3. Collections
+
+Collection represents a group of objects.
+
+Common methods: 
+add()
+remove()
+contains()
+size()
+isEmpty()
+clear()
+iterator()
+toArray()
+
+
+
+This is extremely important.
+
+Learn deeply:
+Collection
+ ├── List
+ │    ├── ArrayList
+ │    └── LinkedList
+ │
+ ├── Set
+ │    ├── HashSet
+ │    ├── LinkedHashSet
+ │    └── TreeSet
+ │
+ └── Queue
+      ├── PriorityQueue
+      └── Deque
+	  
+	  
+Also:
+
+HashMap
+ConcurrentHashMap
+TreeMap
+LinkedHashMap
+Hashtable
+ArrayDeque	  
+
+Understand internally:
+
+HashMap
+ ↓
+hash()
+ ↓
+bucket
+ ↓
+collision
+ ↓
+linked list / tree
+
+
+4. Multithreading
+
+Must know:
+
+Thread
+Runnable
+Callable
+Future
+ExecutorService
+ThreadPoolExecutor
+synchronized
+volatile
+Atomic classes
+Lock
+ReentrantLock
+ReadWriteLock
+CountDownLatch
+CyclicBarrier
+Semaphore
+CompletableFuture
+
+Production problems:
+Deadlock
+Race condition
+Thread starvation
+High CPU
+Thread pool exhaustion
+Memory visibility
+
+
+
+--------------------------Phase 2 — Java 8 → 17 → 21---------------
+For interviews, don't stop at Java 8.
+
+Master:
+
+Java 8
+Lambda
+Functional interfaces
+Stream API
+Optional
+Method references
+Default/static interface methods
+
+Java 9+
+Modules
+Private interface methods
+Java 10+
+var
+Java 14+
+Switch expressions
+Java 15+
+Text blocks
+Java 16+
+Pattern matching for instanceof
+Records
+Java 17
+
+Very important for modern Spring Boot.
+
+Java 21
+
+Know:
+
+Virtual threads
+Pattern matching
+Record patterns
+Sequenced collections
+
+
+
+
+
+
+------------------Phase 3 — DSA with Java----------------
+You don't need competitive programming depth for most backend interviews, but you need strong problem-solving.
+
+Level 1
+
+Array
+String
+HashMap
+HashSet
+Two Pointer
+Sliding Window
+Stack
+Queue
+Deque
+
+Level 2
+Binary Search
+Linked List
+Recursion
+Sorting
+Intervals
+Prefix Sum
+Heap / PriorityQueue
+
+Level 3
+
+Binary Tree
+BST
+Graph
+BFS
+DFS
+Backtracking
+Dynamic Programming
+Trie
+
+Target
+Solve approximately:
+Easy       30
+Medium     70
+Hard       15
+
+Focus heavily on:
+
+Sliding window
+HashMap
+Binary search
+Stack
+Queue/Deque
+Trees
+Heap
+Graph
+
+--------------------Phase 4 — SQL + Database --------------
+For backend interviews, SQL is extremely important.
+
+SQL
+
+Master:
+SELECT
+JOIN
+GROUP BY
+HAVING
+ORDER BY
+SUBQUERY
+CTE
+WINDOW FUNCTIONS
+UNION
+EXISTS
+CASE
+
+Especially:
+INNER JOIN
+LEFT JOIN
+SELF JOIN
+
+Advanced SQL
+Learn:
+
+Indexes
+Composite indexes
+B-tree
+Execution plan
+Query optimization
+Partitioning
+Constraints
+Views
+Materialized views
+Stored procedures
+Transactions
+
+Production debugging
+
+You should be able to investigate:
+Query taking 20 seconds
+        ↓
+Execution plan
+        ↓
+Index?
+        ↓
+Full table scan?
+        ↓
+Wrong join?
+        ↓
+Too many rows?
+        ↓
+Statistics?
+        ↓
+Lock?
+
+
+Since you work with Oracle, go deeper into:
+V$SQL
+AWR
+ASH
+DBMS_XPLAN
+SQL Monitoring
+TKPROF
+
+
+----------------Phase 5 — JDBC---------------------
+Understand what happens underneath Spring/JPA.
+Learn:
+Connection
+PreparedStatement
+ResultSet
+Transaction
+Connection Pool
+
+Understand:
+Application
+   ↓
+HikariCP
+   ↓
+JDBC
+   ↓
+Database
+
+Interview questions:
+
+What is connection pooling?
+Why PreparedStatement?
+What happens when connection pool is exhausted?
+What is auto-commit?
+How does transaction rollback work?
+
+
+
+
+--------------Phase 6 — Hibernate / JPA---------
+This should be a major focus for your experience level.
+
+Learn:
+Entity lifecycle
+
+Transient
+   ↓
+Persistent
+   ↓
+Detached
+   ↓
+Removed
+
+Relationships
+@OneToOne
+@OneToMany
+@ManyToOne
+@ManyToMany
+
+Fetching
+LAZY
+EAGER
+
+
+Important concepts
+Persistence Context
+First-level cache
+Second-level cache
+Dirty checking
+EntityManager
+Session
+SessionFactory
+JPQL
+Criteria API
+Native SQL
+Cascade
+orphanRemoval
+Entity states
+persist()
+save()
+merge()
+update()
+
+
+Production problems
+
+You MUST understand:
+N+1 Query
+LazyInitializationException
+Cartesian product
+Too many joins
+Slow queries
+Memory problems
+Batch insert
+Pagination
+Optimistic locking
+Pessimistic locking
+
+
+--------------Phase 7 — Spring Core ------------
+
+Learn Spring before Spring Boot.
+
+IoC
+DI
+Bean
+ApplicationContext
+BeanFactory
+Bean lifecycle
+Scopes
+@Component
+@Service
+@Repository
+@Controller
+@Configuration
+@Bean
+
+
+Then:
+@Autowired
+@Qualifier
+@Primary
+@PostConstruct
+@PreDestroy
+
+
+Understand dependency injection internally.
+
+interview question:
+How does Spring create and inject a bean?
+
+
+You should be able to explain:
+Application startup
+       ↓
+Component scanning
+       ↓
+Bean definition
+       ↓
+Bean creation
+       ↓
+Dependency injection
+       ↓
+Post processing
+       ↓
+Bean ready
+
+
+
+
+------------ Phase 8 — Spring Boot -------------
+
+Master:
+
+Auto configuration
+Starters
+Configuration
+Profiles
+Actuator
+Validation
+Exception handling
+REST APIs
+Filters
+Interceptors
+AOP
+Transactions
+
+Important:
+@RestController
+@RequestMapping
+@GetMapping
+@PostMapping
+@PutMapping
+@DeleteMapping
+
+Validation:
+@NotNull
+@NotBlank
+@NotEmpty
+@Size
+@Pattern
+@Valid
+@Validated
+
+Exception handling:
+@ControllerAdvice
+@ExceptionHandler
+
+---------------------Phase 9 — REST API -------------
+
+Learn production REST design.
+
+Example:
+POST   /api/users
+GET    /api/users/{id}
+GET    /api/users
+PUT    /api/users/{id}
+DELETE /api/users/{id}
+
+
+Understand:
+
+HTTP methods
+Status codes
+Headers
+Query parameters
+Path variables
+Request body
+Pagination
+Sorting
+Filtering
+Versioning
+Idempotency
+API documentation
+
+Know when to use:
+
+200
+201
+204
+400
+401
+403
+404
+409
+422
+500
+
+
+----------------- Phase 10 — Spring Security + JWT --------
+
+Very important for backend interviews.
+
+Learn: 
+
+Authentication
+Authorization
+Principal
+Authorities
+Roles
+Filters
+SecurityContext
+JWT
+Access Token
+Refresh Token
+
+Flow: 
+
+Client
+   ↓
+Login
+   ↓
+Username/password
+   ↓
+AuthenticationManager
+   ↓
+Authentication
+   ↓
+JWT generated
+   ↓
+Client
+   ↓
+Authorization header
+   ↓
+JWT filter
+   ↓
+Validate token
+   ↓
+SecurityContext
+   ↓
+Controller
+
+
+Also learn:
+
+BCrypt
+CORS
+CSRF
+OAuth2 basics
+Role-based authorization
+
+
+
+-------------------Phase 11 — Microservices ----------- 
+
+This is where an 8-year backend interview becomes much more architectural.
+
+Learn:
+
+Monolith
+   ↓
+Modular Monolith
+   ↓
+Microservices
+
+Understand why microservices are used and when they should NOT be used.
+
+Core components
+
+API Gateway
+Service Discovery
+Config Server
+User Service
+Product Service
+Order Service
+Payment Service
+Inventory Service
+
+Communication
+
+REST
+Feign
+WebClient
+Kafka
+RabbitMQ
+
+
+Distributed-system concepts
+
+Must know:
+
+Service discovery
+Load balancing
+Circuit breaker
+Retry
+Timeout
+Rate limiting
+Bulkhead
+Distributed tracing
+Correlation ID
+Idempotency
+Eventual consistency
+Distributed transactions
+
+
+
+-------------------- Phase 12 — Kafka -----------
+
+For your target profile, Kafka deserves serious preparation.
+
+Learn:
+
+Producer
+   ↓
+Topic
+   ↓
+Partition
+   ↓
+Consumer Group
+   ↓
+Consumer
+
+
+Understand:
+
+Broker
+Topic
+Partition
+Offset
+Consumer group
+Replication
+Producer acknowledgement
+Consumer offset
+Rebalancing
+Ordering
+Retention
+Retry
+Dead-letter topic
+
+Important interview scenario:
+Order is created, but payment service is down. What happens?
+
+
+You should discuss:
+Order Service
+     ↓
+Kafka
+     ↓
+Payment Service
+     ↓
+Retry
+     ↓
+DLQ
+
+
+
+------------------- Phase 13 — Redis ------------
+Learn:
+
+Cache-aside
+Read-through
+Write-through
+Write-behind
+
+Spring:
+
+@Cacheable
+@CachePut
+@CacheEvict
+
+
+Understand:
+
+TTL
+Eviction
+Serialization
+Cache invalidation
+Distributed cache
+Redis data structures
+Cache stampede
+Cache penetration
+
+
+----------------Phase 14 — Observability ----------------
+This should be a major part of your preparation because you specifically want to learn logging/tracking.
+
+Learn:
+
+Logging
+Monitoring
+Tracing
+Metrics
+
+Logging :
+SLF4J
+Logback
+Structured logging
+JSON logs
+Correlation ID
+MDC
+
+
+Metrics : 
+
+Micrometer
+Prometheus
+Grafana
+Spring Boot Actuator
+
+
+Distributed tracing :
+
+Learn:
+
+OpenTelemetry
+Trace ID
+Span ID
+
+
+Example:
+Client
+ ↓
+API Gateway
+ traceId=abc123
+ ↓
+Order Service
+ traceId=abc123
+ ↓
+Payment Service
+ traceId=abc123
+ ↓
+Kafka
+
+
+------------------ Phase 15 — Docker -------------
+
+Learn enough to containerize your complete application.
+
+Dockerfile
+Image
+Container
+Volume
+Network
+Docker Compose
+
+
+Your project should run: 
+
+docker-compose
+      ↓
+MySQL / Oracle
+Redis
+Kafka
+Services
+
+
+-------------------- Phase 16 — Kubernetes ------------
+
+For senior backend interviews, know the fundamentals.
+
+Learn:
+Pod
+Deployment
+Service
+ConfigMap
+Secret
+Ingress
+Namespace
+ReplicaSet
+HPA
+Liveness Probe
+Readiness Probe
+
+Understand: 
+
+Internet
+   ↓
+Ingress
+   ↓
+Service
+   ↓
+Pod
+   ↓
+Application
+
+
+
+-------------- Phase 17 — CI/CD -------------------
+
+Learn:
+
+Git
+ ↓
+Jenkins/GitHub Actions
+ ↓
+Build
+ ↓
+Test
+ ↓
+Docker image
+ ↓
+Registry
+ ↓
+Kubernetes
+ ↓
+Deployment
+
+
+Know:
+
+Maven
+Unit tests
+Integration tests
+Docker
+Jenkins
+Pipeline
+Deployment strategies
+
+
+
+-------------- Phase 18 — Testing ----------------
+Don't ignore testing.
+
+Unit testing 
+
+JUnit 5
+Mockito
+
+Integration testing
+
+@SpringBootTest
+MockMvc
+Testcontainers
+
+Learn: 
+Unit Test
+Integration Test
+Contract Test
+End-to-End Test
+
+
+--------------- Phase 19 — System Design ----------------
+
+This is essential for senior interviews.
+
+Start with:
+
+L1 : 
+URL Shortener
+
+L2
+File Upload System
+Notification System
+
+L3
+E-commerce
+Order Management
+Payment System
+
+L4
+Uber-like system
+Netflix-like system
+WhatsApp-like system
+
+For every design answer:
+
+Requirements
+ ↓
+API
+ ↓
+Database
+ ↓
+Architecture
+ ↓
+Scaling
+ ↓
+Caching
+ ↓
+Messaging
+ ↓
+Failure handling
+ ↓
+Monitoring
+ ↓
+Security
+
+
+
+
+------------- Phase 20 — Production Troubleshooting--------------
+
+This is where you can differentiate yourself from candidates who only know theory.
+
+Practice scenarios like:
+
+Scenario 1
+
+API response changed from 200ms → 5 seconds
+
+Investigate:
+
+Logs
+ ↓
+Metrics
+ ↓
+Trace
+ ↓
+DB
+ ↓
+External API
+ ↓
+Thread pool
+ ↓
+Connection pool
+ ↓
+GC
+
+
+Scenario 2
+
+CPU = 100%
+
+Investigate:
+
+Thread dump
+ ↓
+CPU-consuming thread
+ ↓
+Stack trace
+ ↓
+Infinite loop?
+ ↓
+Lock?
+ ↓
+Heavy computation?
+
+
+Scenario 3
+
+Memory = 95%
+
+Investigate:
+
+Heap
+ ↓
+GC
+ ↓
+Heap dump
+ ↓
+Large objects
+ ↓
+Memory leak
+
+
+Scenario 4
+
+Database suddenly slow
+
+Investigate:
+
+Slow queries
+ ↓
+Execution plan
+ ↓
+Locks
+ ↓
+Indexes
+ ↓
+Connection pool
+ ↓
+DB CPU / I/O
+
+
+
+---------------Phase 21 — Build One Complete Project--------
+
+Instead of building 20 small projects, build one production-style project.
+
+I recommend:
+
+E-Commerce Order Management System
+
+                    ┌───────────────┐
+                    │ API Gateway   │
+                    └───────┬───────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ↓                   ↓                   ↓
+   User Service       Product Service      Order Service
+        │                   │                   │
+        ↓                   ↓                   ↓
+      DB                  Redis                DB
+                            │
+                            ↓
+                          Kafka
+                            │
+             ┌──────────────┼──────────────┐
+             ↓              ↓              ↓
+        Payment         Inventory      Notification
+         Service          Service         Service
+		 
+
+Technology:
+Java 17/21
+Spring Boot 3
+Spring Security
+JWT
+Spring Data JPA/Hibernate
+Oracle/MySQL
+Redis
+Kafka
+Spring Cloud
+OpenAPI
+OpenTelemetry
+Prometheus
+Grafana
+Docker
+Kubernetes
+Jenkins
+JUnit
+Mockito		 
+
+
+Phase 22 — Interview Question Preparation
+
+Don't memorize 1,000 questions.
+
+Create categories.
+
+
+Java
+100 questions
+
+
+Collections
+50 questions
+
+
+Multithreading
+50 questions
+
+Java 8+
+50 questions
+
+
+SQL
+75 questions
+
+Hibernate/JPA
+75 questions
+
+
+Spring
+100 questions
+
+Spring Boot
+75 questions
+
+
+Security
+50 questions
+
+Microservices
+100 questions
+
+Kafka
+50 questions
+
+Redis
+30 questions
+
+Docker/Kubernetes
+50 questions
+
+System Design
+30 scenarios
+
+
+Most Important Rule
+
+For every technology, don't stop at:
+
+"What is it?"
+
+Reach:
+
+"How does it work?"
+
+Then:
+
+"Why do we use it?"
+
+Then:
+
+"What happens when it fails?"
+
+Then:
+
+"How do I debug it in production?"
+
+For example, don't just learn Kafka.
+
+You should eventually be able to answer:
+
+"Our Order Service publishes an event, but the Payment Service is not receiving it. How will you troubleshoot?"
+
+That level of preparation is what will make your interview answers strong at the experienced Java backend level.
+
+Best path for you
+
+Since you're already working with Java, Spring Boot, Hibernate, Oracle, microservices, Kafka, Redis and WebFlux, I would not restart from zero. We can instead build this as a structured Interview Mastery program, starting with Phase 1: Core Java + DSA, and for every topic cover:
+
+Concept → Internal working → Code → Debugging → Production example → Common mistakes → Interview questions → Coding problems.
+
+
+# JAVA BACKEND DEVELOPER INTERVIEW ROADMAP
+
+## Target: 5–8+ Years Experience
+
+---
+
+# PHASE 1 — CORE JAVA
+
+## 1. Java Fundamentals
+
+* [ ] JDK, JRE, JVM
+* [ ] Java compilation and execution
+* [ ] Stack vs Heap
+* [ ] Java Memory Model
+* [ ] Object creation
+* [ ] `==` vs `equals()`
+* [ ] `hashCode()`
+* [ ] String
+* [ ] String Pool
+* [ ] String vs StringBuilder vs StringBuffer
+* [ ] final
+* [ ] finally
+* [ ] finalize
+* [ ] Wrapper classes
+* [ ] Autoboxing / Unboxing
+* [ ] Pass by value
+* [ ] Immutable objects
+* [ ] Object cloning
+
+## 2. OOP
+
+* [ ] Encapsulation
+* [ ] Inheritance
+* [ ] Polymorphism
+* [ ] Abstraction
+* [ ] Composition
+* [ ] Association
+* [ ] Aggregation
+* [ ] Overloading
+* [ ] Overriding
+* [ ] Static method hiding
+* [ ] Constructor
+* [ ] Constructor chaining
+* [ ] Interface
+* [ ] Abstract class
+* [ ] Default methods
+* [ ] Functional interfaces
+
+## 3. Exception Handling
+
+* [ ] Checked exception
+* [ ] Unchecked exception
+* [ ] Error vs Exception
+* [ ] try/catch/finally
+* [ ] throw
+* [ ] throws
+* [ ] Custom exceptions
+* [ ] Exception propagation
+* [ ] Best practices
+
+---
+
+# PHASE 2 — JAVA COLLECTIONS
+
+## 4. Collections Framework
+
+* [ ] Collection hierarchy
+* [ ] List
+* [ ] ArrayList
+* [ ] LinkedList
+* [ ] Vector
+* [ ] Set
+* [ ] HashSet
+* [ ] LinkedHashSet
+* [ ] TreeSet
+* [ ] Queue
+* [ ] PriorityQueue
+* [ ] Deque
+* [ ] ArrayDeque
+
+## 5. Map
+
+* [ ] HashMap
+* [ ] LinkedHashMap
+* [ ] TreeMap
+* [ ] Hashtable
+* [ ] ConcurrentHashMap
+* [ ] WeakHashMap
+* [ ] IdentityHashMap
+
+## 6. Internal Working
+
+* [ ] HashMap internal working
+* [ ] Hash function
+* [ ] Hash collision
+* [ ] Bucket
+* [ ] equals/hashCode contract
+* [ ] HashMap resizing
+* [ ] Load factor
+* [ ] Treeification
+* [ ] ConcurrentHashMap internal working
+
+---
+
+# PHASE 3 — JAVA 8 TO JAVA 21
+
+## 7. Java 8
+
+* [ ] Lambda expressions
+* [ ] Functional interfaces
+* [ ] Predicate
+* [ ] Consumer
+* [ ] Supplier
+* [ ] Function
+* [ ] BiFunction
+* [ ] Method reference
+* [ ] Stream API
+* [ ] Optional
+* [ ] Default methods
+* [ ] Static interface methods
+
+## 8. Stream API
+
+* [ ] map()
+* [ ] filter()
+* [ ] reduce()
+* [ ] collect()
+* [ ] sorted()
+* [ ] distinct()
+* [ ] limit()
+* [ ] skip()
+* [ ] flatMap()
+* [ ] groupingBy()
+* [ ] partitioningBy()
+* [ ] joining()
+* [ ] findFirst()
+* [ ] findAny()
+* [ ] anyMatch()
+* [ ] allMatch()
+* [ ] noneMatch()
+
+## 9. Modern Java
+
+* [ ] var
+* [ ] Switch expressions
+* [ ] Text blocks
+* [ ] Records
+* [ ] Pattern matching
+* [ ] Sealed classes
+* [ ] Java 17 features
+* [ ] Java 21 features
+* [ ] Virtual Threads
+* [ ] Record patterns
+* [ ] Sequenced Collections
+
+---
+
+# PHASE 4 — MULTITHREADING
+
+## 10. Threading Basics
+
+* [ ] Process vs Thread
+* [ ] Thread lifecycle
+* [ ] Thread class
+* [ ] Runnable
+* [ ] Callable
+* [ ] Future
+* [ ] ExecutorService
+* [ ] ThreadPoolExecutor
+
+## 11. Synchronization
+
+* [ ] synchronized
+* [ ] volatile
+* [ ] Atomic classes
+* [ ] Lock
+* [ ] ReentrantLock
+* [ ] ReadWriteLock
+* [ ] StampedLock
+
+## 12. Concurrency Utilities
+
+* [ ] CountDownLatch
+* [ ] CyclicBarrier
+* [ ] Semaphore
+* [ ] BlockingQueue
+* [ ] CompletableFuture
+* [ ] ForkJoinPool
+
+## 13. Production Problems
+
+* [ ] Race condition
+* [ ] Deadlock
+* [ ] Starvation
+* [ ] Thread starvation
+* [ ] Thread pool exhaustion
+* [ ] High CPU
+* [ ] Memory visibility
+* [ ] Thread dump analysis
+
+---
+
+# PHASE 5 — DSA WITH JAVA
+
+## 14. Basic
+
+* [ ] Arrays
+* [ ] Strings
+* [ ] HashMap
+* [ ] HashSet
+* [ ] Two Pointer
+* [ ] Sliding Window
+* [ ] Prefix Sum
+* [ ] Stack
+* [ ] Queue
+* [ ] Deque
+
+## 15. Intermediate
+
+* [ ] Linked List
+* [ ] Binary Search
+* [ ] Sorting
+* [ ] Intervals
+* [ ] Recursion
+* [ ] Backtracking
+* [ ] Heap
+* [ ] PriorityQueue
+
+## 16. Advanced
+
+* [ ] Binary Tree
+* [ ] BST
+* [ ] Graph
+* [ ] BFS
+* [ ] DFS
+* [ ] Dynamic Programming
+* [ ] Trie
+* [ ] Topological Sort
+
+## Target Problems
+
+* [ ] 30 Easy
+* [ ] 70 Medium
+* [ ] 15 Hard
+
+---
+
+# PHASE 6 — SQL & DATABASE
+
+## 17. SQL Fundamentals
+
+* [ ] SELECT
+* [ ] WHERE
+* [ ] ORDER BY
+* [ ] GROUP BY
+* [ ] HAVING
+* [ ] DISTINCT
+* [ ] CASE
+* [ ] Subquery
+* [ ] CTE
+* [ ] UNION
+* [ ] UNION ALL
+* [ ] EXISTS
+
+## 18. Joins
+
+* [ ] INNER JOIN
+* [ ] LEFT JOIN
+* [ ] RIGHT JOIN
+* [ ] FULL JOIN
+* [ ] SELF JOIN
+* [ ] Cross Join
+
+## 19. Advanced SQL
+
+* [ ] Window functions
+* [ ] ROW_NUMBER
+* [ ] RANK
+* [ ] DENSE_RANK
+* [ ] LEAD
+* [ ] LAG
+* [ ] Partition By
+* [ ] Stored Procedures
+* [ ] Views
+* [ ] Materialized Views
+
+## 20. Database Concepts
+
+* [ ] Primary Key
+* [ ] Foreign Key
+* [ ] Unique Key
+* [ ] Constraints
+* [ ] Normalization
+* [ ] Denormalization
+* [ ] Transactions
+* [ ] ACID
+* [ ] Isolation levels
+* [ ] Locks
+* [ ] Deadlocks
+
+## 21. Database Performance
+
+* [ ] Index
+* [ ] Composite Index
+* [ ] B-Tree
+* [ ] Execution Plan
+* [ ] Full Table Scan
+* [ ] Query Optimization
+* [ ] Partitioning
+* [ ] Statistics
+
+## Oracle
+
+* [ ] V$SQL
+* [ ] AWR
+* [ ] ASH
+* [ ] DBMS_XPLAN
+* [ ] SQL Monitoring
+* [ ] TKPROF
+
+---
+
+# PHASE 7 — JDBC
+
+## 22. JDBC
+
+* [ ] Driver
+* [ ] Connection
+* [ ] Statement
+* [ ] PreparedStatement
+* [ ] CallableStatement
+* [ ] ResultSet
+* [ ] Transactions
+* [ ] Commit
+* [ ] Rollback
+* [ ] Batch processing
+* [ ] Connection pooling
+* [ ] HikariCP
+
+---
+
+# PHASE 8 — HIBERNATE / JPA
+
+## 23. Hibernate Fundamentals
+
+* [ ] Hibernate architecture
+* [ ] SessionFactory
+* [ ] Session
+* [ ] EntityManager
+* [ ] Persistence Context
+* [ ] Entity lifecycle
+* [ ] First-level cache
+* [ ] Second-level cache
+* [ ] Dirty checking
+
+## 24. Entity States
+
+* [ ] Transient
+* [ ] Persistent
+* [ ] Detached
+* [ ] Removed
+* [ ] persist()
+* [ ] save()
+* [ ] update()
+* [ ] merge()
+* [ ] delete()
+
+## 25. Relationships
+
+* [ ] One-to-One
+* [ ] One-to-Many
+* [ ] Many-to-One
+* [ ] Many-to-Many
+* [ ] Cascade
+* [ ] orphanRemoval
+
+## 26. Fetching
+
+* [ ] Lazy loading
+* [ ] Eager loading
+* [ ] Fetch Join
+* [ ] Entity Graph
+
+## 27. Hibernate Problems
+
+* [ ] N+1 query
+* [ ] LazyInitializationException
+* [ ] Cartesian product
+* [ ] Slow queries
+* [ ] Batch insert
+* [ ] Pagination
+* [ ] Optimistic locking
+* [ ] Pessimistic locking
+
+---
+
+# PHASE 9 — SPRING CORE
+
+## 28. Spring Fundamentals
+
+* [ ] IoC
+* [ ] Dependency Injection
+* [ ] Bean
+* [ ] ApplicationContext
+* [ ] BeanFactory
+* [ ] Component Scanning
+* [ ] Bean lifecycle
+* [ ] Bean scopes
+
+## 29. Spring Annotations
+
+* [ ] @Component
+* [ ] @Service
+* [ ] @Repository
+* [ ] @Controller
+* [ ] @RestController
+* [ ] @Configuration
+* [ ] @Bean
+* [ ] @Autowired
+* [ ] @Qualifier
+* [ ] @Primary
+* [ ] @PostConstruct
+* [ ] @PreDestroy
+
+## 30. Spring Internal Working
+
+* [ ] Bean creation
+* [ ] Dependency injection
+* [ ] BeanPostProcessor
+* [ ] ApplicationContext startup
+* [ ] Proxy
+* [ ] AOP
+* [ ] CGLIB
+* [ ] JDK Dynamic Proxy
+
+---
+
+# PHASE 10 — SPRING BOOT
+
+## 31. Spring Boot
+
+* [ ] Auto Configuration
+* [ ] Starter dependencies
+* [ ] application.properties
+* [ ] application.yml
+* [ ] Profiles
+* [ ] Configuration Properties
+* [ ] Actuator
+* [ ] Health checks
+* [ ] External configuration
+
+## 32. REST API
+
+* [ ] GET
+* [ ] POST
+* [ ] PUT
+* [ ] PATCH
+* [ ] DELETE
+* [ ] Request Body
+* [ ] Path Variable
+* [ ] Query Parameter
+* [ ] Headers
+* [ ] HTTP Status Codes
+* [ ] Pagination
+* [ ] Sorting
+* [ ] Filtering
+* [ ] API Versioning
+* [ ] Idempotency
+
+## 33. Validation
+
+* [ ] @Valid
+* [ ] @Validated
+* [ ] @NotNull
+* [ ] @NotBlank
+* [ ] @NotEmpty
+* [ ] @Size
+* [ ] @Pattern
+* [ ] Custom validation
+
+## 34. Exception Handling
+
+* [ ] @ControllerAdvice
+* [ ] @ExceptionHandler
+* [ ] Custom Exception
+* [ ] Global Error Response
+* [ ] Error codes
+* [ ] Proper HTTP status
+
+---
+
+# PHASE 11 — SPRING SECURITY + JWT
+
+## 35. Security
+
+* [ ] Authentication
+* [ ] Authorization
+* [ ] Principal
+* [ ] Authority
+* [ ] Role
+* [ ] SecurityContext
+* [ ] SecurityFilterChain
+* [ ] AuthenticationManager
+* [ ] PasswordEncoder
+* [ ] BCrypt
+
+## 36. JWT
+
+* [ ] JWT structure
+* [ ] Header
+* [ ] Payload
+* [ ] Signature
+* [ ] Access Token
+* [ ] Refresh Token
+* [ ] JWT validation
+* [ ] JWT Filter
+* [ ] Token expiration
+
+## 37. Security Problems
+
+* [ ] CORS
+* [ ] CSRF
+* [ ] XSS
+* [ ] SQL Injection
+* [ ] Authentication failure
+* [ ] Authorization failure
+* [ ] Token theft
+* [ ] Refresh token strategy
+
+---
+
+# PHASE 12 — MICROSERVICES
+
+## 38. Architecture
+
+* [ ] Monolith
+* [ ] Modular Monolith
+* [ ] Microservices
+* [ ] Service boundaries
+* [ ] Database per service
+* [ ] Independent deployment
+
+## 39. Spring Cloud
+
+* [ ] API Gateway
+* [ ] Service Discovery
+* [ ] Eureka
+* [ ] Config Server
+* [ ] Load Balancing
+* [ ] OpenFeign
+* [ ] WebClient
+
+## 40. Resilience
+
+* [ ] Timeout
+* [ ] Retry
+* [ ] Circuit Breaker
+* [ ] Rate Limiting
+* [ ] Bulkhead
+* [ ] Fallback
+* [ ] Resilience4j
+
+## 41. Distributed Systems
+
+* [ ] Distributed transactions
+* [ ] Eventual consistency
+* [ ] Idempotency
+* [ ] Saga Pattern
+* [ ] Outbox Pattern
+* [ ] CAP theorem
+* [ ] Consistency
+* [ ] Availability
+* [ ] Partition tolerance
+
+---
+
+# PHASE 13 — KAFKA
+
+## 42. Kafka Fundamentals
+
+* [ ] Broker
+* [ ] Topic
+* [ ] Partition
+* [ ] Producer
+* [ ] Consumer
+* [ ] Consumer Group
+* [ ] Offset
+* [ ] Replication
+
+## 43. Producer
+
+* [ ] Acknowledgement
+* [ ] Batch
+* [ ] Compression
+* [ ] Retry
+* [ ] Idempotent Producer
+* [ ] Partitioning
+* [ ] Ordering
+
+## 44. Consumer
+
+* [ ] Consumer Group
+* [ ] Offset
+* [ ] Auto Commit
+* [ ] Manual Commit
+* [ ] Rebalancing
+* [ ] Consumer lag
+
+## 45. Production Kafka
+
+* [ ] Retry Topic
+* [ ] Dead Letter Topic
+* [ ] Error Handling
+* [ ] Duplicate Messages
+* [ ] Message Ordering
+* [ ] Exactly Once
+* [ ] At Least Once
+* [ ] At Most Once
+
+---
+
+# PHASE 14 — REDIS
+
+## 46. Redis
+
+* [ ] Key-Value
+* [ ] String
+* [ ] List
+* [ ] Set
+* [ ] Sorted Set
+* [ ] Hash
+* [ ] TTL
+* [ ] Expiration
+* [ ] Eviction
+
+## 47. Caching
+
+* [ ] Cache Aside
+* [ ] Read Through
+* [ ] Write Through
+* [ ] Write Behind
+* [ ] @Cacheable
+* [ ] @CachePut
+* [ ] @CacheEvict
+
+## 48. Cache Problems
+
+* [ ] Cache miss
+* [ ] Cache stampede
+* [ ] Cache penetration
+* [ ] Cache invalidation
+* [ ] Serialization problems
+* [ ] Distributed cache
+
+---
+
+# PHASE 15 — LOGGING & OBSERVABILITY
+
+## 49. Logging
+
+* [ ] SLF4J
+* [ ] Logback
+* [ ] Log levels
+* [ ] Structured logging
+* [ ] JSON logging
+* [ ] MDC
+* [ ] Correlation ID
+* [ ] Request ID
+
+## 50. Monitoring
+
+* [ ] Spring Actuator
+* [ ] Micrometer
+* [ ] Prometheus
+* [ ] Grafana
+* [ ] JVM metrics
+* [ ] CPU metrics
+* [ ] Memory metrics
+* [ ] API latency
+* [ ] Error rate
+
+## 51. Distributed Tracing
+
+* [ ] OpenTelemetry
+* [ ] Trace ID
+* [ ] Span ID
+* [ ] Trace propagation
+* [ ] Distributed request tracking
+
+---
+
+# PHASE 16 — DOCKER
+
+## 52. Docker
+
+* [ ] Image
+* [ ] Container
+* [ ] Dockerfile
+* [ ] Volume
+* [ ] Network
+* [ ] Port Mapping
+* [ ] Environment Variables
+* [ ] Docker Compose
+* [ ] Multi-stage Build
+
+---
+
+# PHASE 17 — KUBERNETES
+
+## 53. Kubernetes
+
+* [ ] Cluster
+* [ ] Node
+* [ ] Pod
+* [ ] Deployment
+* [ ] ReplicaSet
+* [ ] Service
+* [ ] ConfigMap
+* [ ] Secret
+* [ ] Namespace
+* [ ] Ingress
+
+## 54. Production Kubernetes
+
+* [ ] Liveness Probe
+* [ ] Readiness Probe
+* [ ] Resource Limits
+* [ ] Resource Requests
+* [ ] HPA
+* [ ] Rolling Deployment
+* [ ] Scaling
+* [ ] Logs
+* [ ] Troubleshooting Pods
+
+---
+
+# PHASE 18 — CI/CD
+
+## 55. CI/CD
+
+* [ ] Git
+* [ ] GitHub/GitLab
+* [ ] Maven
+* [ ] Build Pipeline
+* [ ] Unit Test
+* [ ] Integration Test
+* [ ] Docker Build
+* [ ] Docker Registry
+* [ ] Jenkins
+* [ ] Deployment Pipeline
+* [ ] Rollback
+
+---
+
+# PHASE 19 — TESTING
+
+## 56. Unit Testing
+
+* [ ] JUnit 5
+* [ ] Mockito
+* [ ] Mock
+* [ ] Spy
+* [ ] ArgumentCaptor
+* [ ] Assertions
+* [ ] Parameterized Tests
+
+## 57. Integration Testing
+
+* [ ] @SpringBootTest
+* [ ] MockMvc
+* [ ] Testcontainers
+* [ ] Repository Testing
+* [ ] API Testing
+
+## 58. Testing Strategy
+
+* [ ] Unit Test
+* [ ] Integration Test
+* [ ] Contract Test
+* [ ] End-to-End Test
+* [ ] Test Pyramid
+
+---
+
+# PHASE 20 — SYSTEM DESIGN
+
+## 59. System Design Fundamentals
+
+* [ ] Functional Requirements
+* [ ] Non-functional Requirements
+* [ ] Scalability
+* [ ] Availability
+* [ ] Reliability
+* [ ] Performance
+* [ ] Security
+* [ ] CAP Theorem
+
+## 60. Components
+
+* [ ] Load Balancer
+* [ ] API Gateway
+* [ ] Cache
+* [ ] Database
+* [ ] Message Queue
+* [ ] CDN
+* [ ] Object Storage
+* [ ] Search Engine
+
+## 61. Design Patterns
+
+* [ ] Singleton
+* [ ] Factory
+* [ ] Strategy
+* [ ] Builder
+* [ ] Observer
+* [ ] Adapter
+* [ ] Decorator
+* [ ] Proxy
+* [ ] Template Method
+
+## 62. System Design Problems
+
+* [ ] URL Shortener
+* [ ] File Upload System
+* [ ] Notification System
+* [ ] E-commerce System
+* [ ] Order Management System
+* [ ] Payment System
+* [ ] Food Delivery System
+* [ ] Ride Booking System
+* [ ] Chat Application
+* [ ] Video Streaming System
+
+---
+
+# PHASE 21 — PRODUCTION TROUBLESHOOTING
+
+## 63. API Performance
+
+* [ ] API latency increased
+* [ ] Slow API
+* [ ] Timeout
+* [ ] External API failure
+* [ ] Thread pool exhaustion
+* [ ] Connection pool exhaustion
+
+## 64. CPU Problems
+
+* [ ] CPU 100%
+* [ ] Thread dump
+* [ ] Infinite loop
+* [ ] Deadlock
+* [ ] Heavy computation
+* [ ] GC CPU usage
+
+## 65. Memory Problems
+
+* [ ] High Heap
+* [ ] OutOfMemoryError
+* [ ] Memory Leak
+* [ ] Heap Dump
+* [ ] GC Logs
+* [ ] Large Objects
+
+## 66. Database Problems
+
+* [ ] Slow Query
+* [ ] Missing Index
+* [ ] Wrong Execution Plan
+* [ ] Full Table Scan
+* [ ] Lock
+* [ ] Deadlock
+* [ ] Connection Pool Exhaustion
+
+## 67. Microservice Problems
+
+* [ ] Service unavailable
+* [ ] Kafka consumer not receiving messages
+* [ ] Kafka rebalance
+* [ ] Redis unavailable
+* [ ] Database unavailable
+* [ ] Circuit breaker open
+* [ ] Network timeout
+* [ ] Distributed tracing
+
+---
+
+# PHASE 22 — COMPLETE PROJECT
+
+## E-Commerce Order Management System
+
+### Services
+
+* [ ] API Gateway
+* [ ] Service Registry
+* [ ] Config Server
+* [ ] User Service
+* [ ] Product Service
+* [ ] Order Service
+* [ ] Payment Service
+* [ ] Inventory Service
+* [ ] Notification Service
+
+### Technology
+
+* [ ] Java 17/21
+* [ ] Spring Boot 3
+* [ ] Spring Cloud
+* [ ] Spring Security
+* [ ] JWT
+* [ ] Hibernate/JPA
+* [ ] Oracle/MySQL
+* [ ] Redis
+* [ ] Kafka
+* [ ] OpenAPI
+* [ ] OpenTelemetry
+* [ ] Prometheus
+* [ ] Grafana
+* [ ] Docker
+* [ ] Kubernetes
+* [Jenkins
+* [ ] JUnit
+* [ ] Mockito
+* [ ] Testcontainers
+
+### Project Features
+
+* [ ] User registration
+* [ ] Login
+* [ ] JWT authentication
+* [ ] Product CRUD
+* [ ] Product search
+* [ ] Product caching
+* [ ] Cart
+* [ ] Order creation
+* [ ] Inventory reservation
+* [ ] Payment processing
+* [ ] Kafka events
+* [ ] Notification
+* [ ] Retry mechanism
+* [ ] Dead Letter Queue
+* [ ] Distributed tracing
+* [ ] Centralized logging
+* [ ] Metrics
+* [ ] Docker deployment
+* [ ] Kubernetes deployment
+* [ ] CI/CD pipeline
+
+---
+
+# PHASE 23 — INTERVIEW QUESTIONS
+
+## Core Java
+
+* [ ] 100 Questions
+
+## Collections
+
+* [ ] 50 Questions
+
+## Multithreading
+
+* [ ] 50 Questions
+
+## Java 8+
+
+* [ ] 50 Questions
+
+## SQL
+
+* [ ] 75 Questions
+
+## Hibernate/JPA
+
+* [ ] 75 Questions
+
+## Spring
+
+* [ ] 100 Questions
+
+## Spring Boot
+
+* [ ] 75 Questions
+
+## Spring Security
+
+* [ ] 50 Questions
+
+## Microservices
+
+* [ ] 100 Questions
+
+## Kafka
+
+* [ ] 50 Questions
+
+## Redis
+
+* [ ] 30 Questions
+
+## Docker/Kubernetes
+
+* [ ] 50 Questions
+
+## System Design
+
+* [ ] 30 Scenarios
+
+---
+
+# PHASE 24 — MOCK INTERVIEW
+
+## Round 1 — Coding
+
+* [ ] Java coding
+* [ ] DSA
+* [ ] Streams
+* [ ] Collections
+
+## Round 2 — Java Backend
+
+* [ ] Core Java
+* [ ] Multithreading
+* [ ] SQL
+* [ ] Hibernate
+* [ ] Spring Boot
+
+## Round 3 — Microservices
+
+* [ ] Microservices
+* [ ] Kafka
+* [ ] Redis
+* [ ] Security
+* [ ] Distributed systems
+
+## Round 4 — System Design
+
+* [ ] Low-level design
+* [ ] High-level design
+* [ ] Scalability
+* [ ] Failure handling
+
+## Round 5 — Production
+
+* [ ] Debugging
+* [ ] Performance
+* [ ] Incident handling
+* [ ] Monitoring
+* [ ] Troubleshooting
+
+## Round 6 — Managerial
+
+* [ ] Project explanation
+* [ ] Technical decisions
+* [ ] Production incidents
+* [ ] Team collaboration
+* [ ] Conflict handling
+* [ ] Ownership
+* [ ] Leadership
+
+---
+
+# 6-MONTH STUDY PLAN
+
+## MONTH 1
+
+* [ ] Core Java
+* [ ] OOP
+* [ ] Collections
+* [ ] Java 8
+* [ ] DSA Basics
+
+## MONTH 2
+
+* [ ] Multithreading
+* [ ] Java 17/21
+* [ ] DSA Intermediate
+* [ ] SQL
+* [ ] Database
+
+## MONTH 3
+
+* [ ] JDBC
+* [ ] Hibernate
+* [ ] JPA
+* [ ] Spring Core
+* [ ] Spring AOP
+* [ ] Project Database Layer
+
+## MONTH 4
+
+* [ ] Spring Boot
+* [ ] REST API
+* [ ] Validation
+* [ ] Exception Handling
+* [ ] Spring Security
+* [ ] JWT
+* [ ] Project APIs
+
+## MONTH 5
+
+* [ ] Microservices
+* [ ] API Gateway
+* [ ] Eureka
+* [ ] Config Server
+* [ ] Kafka
+* [ ] Redis
+* [ ] OpenTelemetry
+* [ ] Prometheus
+* [ ] Grafana
+
+## MONTH 6
+
+* [ ] Docker
+* [ ] Kubernetes
+* [ ] Jenkins
+* [ ] System Design
+* [ ] Production Troubleshooting
+* [ ] Project Completion
+* [ ] Interview Questions
+* [ ] Mock Interviews
+
+---
+
+# DAILY STUDY PLAN
+
+## 3 HOURS/DAY
+
+1 Hour
+→ Concept
+
+1 Hour
+→ Coding / Project
+
+30 Minutes
+→ DSA
+
+30 Minutes
+→ Interview Questions
+
+---
+
+# LEARNING METHOD
+
+For EVERY topic:
+
+1. [ ] What is it?
+2. [ ] Why do we need it?
+3. [ ] How does it work internally?
+4. [ ] Write code
+5. [ ] Debug the code
+6. [ ] Understand common mistakes
+7. [ ] Understand production usage
+8. [ ] Learn performance implications
+9. [ ] Learn failure scenarios
+10. [ ] Practice interview questions
+
+---
+
+# FINAL INTERVIEW TARGET
+
+By the end, I should be able to:
+
+* [ ] Write clean Java code
+* [ ] Solve DSA problems
+* [ ] Explain JVM internals
+* [ ] Explain Collections internally
+* [ ] Explain multithreading
+* [ ] Write optimized SQL
+* [ ] Debug Hibernate problems
+* [ ] Build Spring Boot APIs
+* [ ] Secure APIs using JWT
+* [ ] Design microservices
+* [ ] Explain Kafka architecture
+* [ ] Implement Redis caching
+* [ ] Implement logging/tracing
+* [ ] Monitor production applications
+* [ ] Dockerize applications
+* [ ] Deploy to Kubernetes
+* [ ] Design scalable systems
+* [ ] Troubleshoot production issues
+* [ ] Explain my project architecture
+* [ ] Handle senior-level interview questions
+
+---
+
+# GOLDEN RULE
+
+Do not learn only:
+
+"What is this?"
+
+Learn:
+
+"What is it?"
+↓
+"Why is it needed?"
+↓
+"How does it work internally?"
+↓
+"How do I implement it?"
+↓
+"What can go wrong?"
+↓
+"How do I debug it?"
+↓
+"How do I optimize it?"
+↓
+"How would I explain it in an interview?"
+
+---
+
+# END GOAL
+
+JAVA BACKEND DEVELOPER
+↓
+CORE JAVA
+↓
+DSA
+↓
+SQL + DATABASE
+↓
+HIBERNATE / JPA
+↓
+SPRING
+↓
+SPRING BOOT
+↓
+REST API
+↓
+SECURITY + JWT
+↓
+MICROSERVICES
+↓
+KAFKA + REDIS
+↓
+LOGGING + MONITORING + TRACING
+↓
+DOCKER
+↓
+KUBERNETES
+↓
+CI/CD
+↓
+SYSTEM DESIGN
+↓
+PRODUCTION TROUBLESHOOTING
+↓
+MOCK INTERVIEWS
+↓
+JAVA BACKEND INTERVIEW READY
+
+
+# JAVA BACKEND DEVELOPER — 8 YEARS EXPERIENCE
+
+# INTERVIEW ROADMAP
+
+Target:
+
+* Senior Java Backend Developer
+* Senior Software Engineer
+* Lead Java Developer
+* Technical Lead
+* Backend Architect track
+
+---
+
+# PHASE 1 — CORE JAVA DEEP DIVE
+
+## 1. JVM INTERNALS
+
+* [ ] JVM Architecture
+* [ ] Class Loader
+* [ ] Bootstrap ClassLoader
+* [ ] Platform ClassLoader
+* [ ] Application ClassLoader
+* [ ] Class Loading Process
+* [ ] Linking
+* [ ] Verification
+* [ ] Preparation
+* [ ] Resolution
+* [ ] Initialization
+* [ ] Runtime Data Areas
+* [ ] Heap
+* [ ] Stack
+* [ ] Method Area
+* [ ] Metaspace
+* [ ] Program Counter
+* [ ] Native Method Stack
+* [ ] JIT Compiler
+* [ ] Interpreter
+* [ ] Bytecode
+* [ ] Garbage Collection
+
+### Interview Focus
+
+* [ ] What happens internally when Java application starts?
+* [ ] How class loading works?
+* [ ] Heap vs Stack
+* [ ] Why OutOfMemoryError occurs?
+* [ ] StackOverflowError
+* [ ] JVM tuning basics
+* [ ] Thread dump
+* [ ] Heap dump
+* [ ] GC analysis
+
+---
+
+# PHASE 2 — ADVANCED CORE JAVA
+
+## 2. OOP + Design
+
+* [ ] SOLID Principles
+* [ ] Composition vs Inheritance
+* [ ] Immutability
+* [ ] Defensive Copy
+* [ ] Dependency Inversion
+* [ ] Clean Code
+* [ ] Clean Architecture basics
+
+## 3. Collections
+
+* [ ] HashMap Internal Working
+* [ ] HashSet Internal Working
+* [ ] TreeMap
+* [ ] TreeSet
+* [ ] ConcurrentHashMap
+* [ ] CopyOnWriteArrayList
+* [ ] BlockingQueue
+* [ ] PriorityQueue
+* [ ] Deque
+* [ ] WeakHashMap
+
+### Deep Dive
+
+* [ ] Hash collision
+* [ ] Load factor
+* [ ] Resizing
+* [ ] Treeification
+* [ ] equals/hashCode
+* [ ] Concurrent collections
+* [ ] Fail-fast
+* [ ] Fail-safe
+
+---
+
+# PHASE 3 — MULTITHREADING & CONCURRENCY
+
+## 4. Threading
+
+* [ ] Thread lifecycle
+* [ ] Runnable
+* [ ] Callable
+* [ ] Future
+* [ ] ExecutorService
+* [ ] ThreadPoolExecutor
+* [ ] ForkJoinPool
+* [ ] CompletableFuture
+
+## 5. Synchronization
+
+* [ ] synchronized
+* [ ] volatile
+* [ ] AtomicInteger
+* [ ] AtomicLong
+* [ ] CAS
+* [ ] ReentrantLock
+* [ ] ReadWriteLock
+* [ ] StampedLock
+
+## 6. Concurrency Problems
+
+* [ ] Race condition
+* [ ] Deadlock
+* [ ] Starvation
+* [ ] Livelock
+* [ ] Thread starvation
+* [ ] Thread pool exhaustion
+* [ ] Blocking vs non-blocking
+* [ ] CPU-bound vs I/O-bound
+
+## 7. Java 21
+
+* [ ] Virtual Threads
+* [ ] Platform Threads vs Virtual Threads
+* [ ] When NOT to use Virtual Threads
+* [ ] Structured concurrency concepts
+
+---
+
+# PHASE 4 — DSA FOR 8 YEARS
+
+Don't spend your entire preparation on DSA.
+
+Focus on interview-relevant patterns.
+
+## Must Master
+
+* [ ] HashMap
+* [ ] HashSet
+* [ ] Two Pointer
+* [ ] Sliding Window
+* [ ] Binary Search
+* [ ] Stack
+* [ ] Queue
+* [ ] Deque
+* [ ] Linked List
+* [ ] Heap
+* [ ] PriorityQueue
+* [ ] Trees
+* [ ] BFS
+* [ ] DFS
+* [ ] Graph
+* [ ] Recursion
+* [ ] Backtracking
+* [ ] Dynamic Programming basics
+
+## Target
+
+* [ ] 25 Easy
+* [ ] 50 Medium
+* [ ] 10 Hard
+
+Focus on explaining:
+
+* [ ] Brute force
+* [ ] Optimization
+* [ ] Time complexity
+* [ ] Space complexity
+* [ ] Edge cases
+
+---
+
+# PHASE 5 — JAVA 8 TO JAVA 21
+
+## Java 8
+
+* [ ] Lambda
+* [ ] Functional Interface
+* [ ] Stream API
+* [ ] Optional
+* [ ] Method Reference
+* [ ] Default Methods
+* [ ] CompletableFuture
+
+## Modern Java
+
+* [ ] var
+* [ ] Records
+* [ ] Sealed Classes
+* [ ] Pattern Matching
+* [ ] Switch Expressions
+* [ ] Text Blocks
+* [ ] Java 17
+* [ ] Java 21
+* [ ] Virtual Threads
+
+## Interview Focus
+
+* [ ] Streams vs loops
+* [ ] Parallel streams
+* [ ] Stream performance
+* [ ] Optional best practices
+* [ ] CompletableFuture chaining
+* [ ] Async exception handling
+
+---
+
+# PHASE 6 — SQL + DATABASE PERFORMANCE
+
+At 8 years, basic SQL is NOT enough.
+
+## SQL
+
+* [ ] Joins
+* [ ] Subqueries
+* [ ] CTE
+* [ ] Window Functions
+* [ ] GROUP BY
+* [ ] HAVING
+* [ ] EXISTS
+* [ ] CASE
+* [ ] UNION
+* [ ] Recursive Queries basics
+
+## Database
+
+* [ ] ACID
+* [ ] Transactions
+* [ ] Isolation Levels
+* [ ] Locks
+* [ ] Deadlocks
+* [ ] MVCC
+* [ ] Indexes
+* [ ] Composite Index
+* [ ] Covering Index
+* [ ] Partitioning
+* [ ] Sharding basics
+* [ ] Replication
+* [ ] Read Replica
+
+## Oracle
+
+* [ ] Execution Plan
+* [ ] V$SQL
+* [ ] AWR
+* [ ] ASH
+* [ ] DBMS_XPLAN
+* [ ] SQL Monitoring
+* [ ] TKPROF
+
+## Production Scenario
+
+Be able to answer:
+
+"API became slow from 200ms to 5 seconds. Database is suspected. How will you investigate?"
+
+Expected thinking:
+
+Application
+→ Logs
+→ Trace
+→ SQL
+→ Execution Plan
+→ Index
+→ Lock
+→ DB CPU
+→ Connection Pool
+→ Root Cause
+
+---
+
+# PHASE 7 — HIBERNATE / JPA
+
+## Hibernate Internals
+
+* [ ] SessionFactory
+* [ ] Session
+* [ ] EntityManager
+* [ ] Persistence Context
+* [ ] Dirty Checking
+* [ ] First Level Cache
+* [ ] Second Level Cache
+* [ ] Entity Lifecycle
+
+## Entity States
+
+* [ ] Transient
+* [ ] Persistent
+* [ ] Detached
+* [ ] Removed
+
+## Relationships
+
+* [ ] One-to-One
+* [ ] One-to-Many
+* [ ] Many-to-One
+* [ ] Many-to-Many
+* [ ] Cascade
+* [ ] orphanRemoval
+
+## Performance
+
+* [ ] N+1 Query
+* [ ] LazyInitializationException
+* [ ] Fetch Join
+* [ ] Entity Graph
+* [ ] Batch Fetch
+* [ ] Batch Insert
+* [ ] Pagination
+* [ ] Optimistic Lock
+* [ ] Pessimistic Lock
+
+## Senior Interview Questions
+
+* [ ] Why is Hibernate generating multiple queries?
+* [ ] How do you solve N+1?
+* [ ] Why does LazyInitializationException happen?
+* [ ] merge() vs update()
+* [ ] save() vs persist()
+* [ ] How does dirty checking work?
+* [ ] How does first-level cache work?
+
+---
+
+# PHASE 8 — SPRING CORE
+
+## Spring Internals
+
+* [ ] IoC
+* [ ] Dependency Injection
+* [ ] BeanFactory
+* [ ] ApplicationContext
+* [ ] Component Scanning
+* [ ] Bean Lifecycle
+* [ ] Bean Scopes
+* [ ] BeanPostProcessor
+* [ ] FactoryBean
+* [ ] Application Events
+
+## AOP
+
+* [ ] Proxy
+* [ ] JDK Dynamic Proxy
+* [ ] CGLIB
+* [ ] @Aspect
+* [ ] Advice
+* [ ] Pointcut
+* [ ] Join Point
+
+## Senior Focus
+
+Be able to explain:
+
+Application startup
+→ Component scanning
+→ Bean definitions
+→ Bean creation
+→ Dependency injection
+→ Bean post-processing
+→ Proxy creation
+→ Bean ready
+
+---
+
+# PHASE 9 — SPRING BOOT
+
+## Core
+
+* [ ] Auto Configuration
+* [ ] Starters
+* [ ] Profiles
+* [ ] Configuration Properties
+* [ ] Actuator
+* [ ] Health Checks
+* [ ] Custom Auto Configuration basics
+
+## REST
+
+* [ ] REST principles
+* [ ] HTTP methods
+* [ ] HTTP status codes
+* [ ] Pagination
+* [ ] Sorting
+* [ ] Filtering
+* [ ] Versioning
+* [ ] Idempotency
+* [ ] API Design
+
+## Validation
+
+* [ ] Bean Validation
+* [ ] Custom Validators
+* [ ] @Valid
+* [ ] @Validated
+
+## Exception Handling
+
+* [ ] @ControllerAdvice
+* [ ] @ExceptionHandler
+* [ ] Error Response
+* [ ] Error Codes
+* [ ] Global Exception Strategy
+
+---
+
+# PHASE 10 — SPRING TRANSACTION MANAGEMENT
+
+VERY IMPORTANT FOR 8 YEARS.
+
+* [ ] @Transactional
+* [ ] Transaction propagation
+* [ ] REQUIRED
+* [ ] REQUIRES_NEW
+* [ ] NESTED
+* [ ] SUPPORTS
+* [ ] NOT_SUPPORTED
+* [ ] NEVER
+* [ ] MANDATORY
+
+## Isolation
+
+* [ ] READ_UNCOMMITTED
+* [ ] READ_COMMITTED
+* [ ] REPEATABLE_READ
+* [ ] SERIALIZABLE
+
+## Deep Dive
+
+* [ ] Transaction proxy
+* [ ] Self-invocation problem
+* [ ] Rollback rules
+* [ ] Checked exception rollback
+* [ ] Runtime exception rollback
+* [ ] Transaction boundaries
+
+---
+
+# PHASE 11 — SPRING SECURITY
+
+* [ ] Authentication
+* [ ] Authorization
+* [ ] SecurityFilterChain
+* [ ] SecurityContext
+* [ ] AuthenticationManager
+* [ ] PasswordEncoder
+* [ ] BCrypt
+* [ ] JWT
+* [ ] Access Token
+* [ ] Refresh Token
+* [ ] Role-based authorization
+* [ ] Method-level security
+* [ ] CORS
+* [ ] CSRF
+* [ ] OAuth2 basics
+
+---
+
+# PHASE 12 — MICROSERVICES
+
+This is one of the MOST IMPORTANT phases for 8 years.
+
+## Architecture
+
+* [ ] Monolith
+* [ ] Modular Monolith
+* [ ] Microservices
+* [ ] Service Boundaries
+* [ ] Database per Service
+* [ ] Independent Deployment
+
+## Spring Cloud
+
+* [ ] API Gateway
+* [ ] Eureka
+* [ ] Config Server
+* [ ] OpenFeign
+* [ ] WebClient
+* [ ] Load Balancing
+
+## Resilience
+
+* [ ] Timeout
+* [ ] Retry
+* [ ] Circuit Breaker
+* [ ] Bulkhead
+* [ ] Rate Limiting
+* [ ] Fallback
+
+## Distributed Systems
+
+* [ ] CAP Theorem
+* [ ] Eventual Consistency
+* [ ] Distributed Transactions
+* [ ] Saga Pattern
+* [ ] Outbox Pattern
+* [ ] Idempotency
+* [ ] Distributed Lock
+* [ ] Data Consistency
+
+---
+
+# PHASE 13 — KAFKA
+
+## Fundamentals
+
+* [ ] Broker
+* [ ] Topic
+* [ ] Partition
+* [ ] Producer
+* [ ] Consumer
+* [ ] Consumer Group
+* [ ] Offset
+* [ ] Replication
+
+## Producer
+
+* [ ] Acknowledgement
+* [ ] Retry
+* [ ] Idempotence
+* [ ] Partitioning
+* [ ] Ordering
+* [ ] Batching
+* [ ] Compression
+
+## Consumer
+
+* [ ] Consumer Group
+* [ ] Offset Management
+* [ ] Manual Commit
+* [ ] Auto Commit
+* [ ] Rebalancing
+* [ ] Consumer Lag
+
+## Production
+
+* [ ] Duplicate Messages
+* [ ] Retry Topic
+* [ ] Dead Letter Topic
+* [ ] Message Ordering
+* [ ] At Least Once
+* [ ] At Most Once
+* [ ] Exactly Once
+* [ ] Poison Messages
+
+---
+
+# PHASE 14 — REDIS
+
+* [ ] Redis Architecture
+* [ ] Data Types
+* [ ] TTL
+* [ ] Eviction
+* [ ] Cache Aside
+* [ ] Read Through
+* [ ] Write Through
+* [ ] Write Behind
+* [ ] @Cacheable
+* [ ] @CachePut
+* [ ] @CacheEvict
+
+## Production Problems
+
+* [ ] Cache Stampede
+* [ ] Cache Penetration
+* [ ] Cache Avalanche
+* [ ] Cache Invalidation
+* [ ] Serialization
+* [ ] Distributed Cache
+
+---
+
+# PHASE 15 — REACTIVE PROGRAMMING
+
+Important if your project uses WebFlux/R2DBC.
+
+* [ ] Reactive Programming
+* [ ] Publisher
+* [ ] Subscriber
+* [ ] Mono
+* [ ] Flux
+* [ ] Backpressure
+* [ ] Non-blocking I/O
+* [ ] WebFlux
+* [ ] WebClient
+* [ ] R2DBC
+* [ ] Reactive Transaction
+* [ ] Blocking vs Non-blocking
+* [ ] Reactor Context
+
+## Senior Question
+
+"When should you NOT use WebFlux?"
+
+Be prepared to explain.
+
+---
+
+# PHASE 16 — LOGGING + MONITORING + TRACING
+
+## Logging
+
+* [ ] SLF4J
+* [ ] Logback
+* [ ] Log Levels
+* [ ] Structured Logging
+* [ ] JSON Logs
+* [ ] MDC
+* [ ] Correlation ID
+
+## Metrics
+
+* [ ] Spring Actuator
+* [ ] Micrometer
+* [ ] Prometheus
+* [ ] Grafana
+* [ ] JVM Metrics
+* [ ] API Latency
+* [ ] Error Rate
+* [ ] Throughput
+* [ ] Connection Pool Metrics
+
+## Distributed Tracing
+
+* [ ] OpenTelemetry
+* [ ] Trace ID
+* [ ] Span ID
+* [ ] Trace Propagation
+* [ ] Cross-service tracing
+
+---
+
+# PHASE 17 — PERFORMANCE ENGINEERING
+
+## JVM
+
+* [ ] Heap Analysis
+* [ ] GC
+* [ ] GC Logs
+* [ ] Heap Dump
+* [ ] Thread Dump
+* [ ] CPU Profiling
+* [ ] Memory Leak
+
+## Application
+
+* [ ] Thread Pool
+* [ ] Connection Pool
+* [ ] Cache
+* [ ] Database
+* [ ] API latency
+* [ ] Serialization
+* [ ] Network latency
+
+## Tools
+
+* [ ] JVisualVM
+* [ ] JConsole
+* [ ] Java Flight Recorder
+* [ ] JProfiler basics
+* [ ] Thread Dump
+* [ ] Heap Dump
+
+---
+
+# PHASE 18 — DOCKER
+
+* [ ] Docker Image
+* [ ] Container
+* [ ] Dockerfile
+* [ ] Multi-stage Build
+* [ ] Volume
+* [ ] Network
+* [ ] Environment Variables
+* [ ] Docker Compose
+* [ ] Container Logs
+* [ ] Container Health Check
+
+---
+
+# PHASE 19 — KUBERNETES
+
+* [ ] Pod
+* [ ] Deployment
+* [ ] ReplicaSet
+* [ ] Service
+* [ ] ConfigMap
+* [ ] Secret
+* [ ] Namespace
+* [ ] Ingress
+* [ ] HPA
+* [ ] Resource Requests
+* [ ] Resource Limits
+* [ ] Liveness Probe
+* [ ] Readiness Probe
+* [ ] Rolling Deployment
+* [ ] Scaling
+
+## Troubleshooting
+
+* [ ] Pod CrashLoopBackOff
+* [ ] Pod Pending
+* [ ] OOMKilled
+* [ ] Service unavailable
+* [ ] Readiness failure
+* [ ] Deployment failure
+
+---
+
+# PHASE 20 — CI/CD
+
+* [ ] Git
+* [ ] Maven
+* [ ] Jenkins
+* [ ] GitHub Actions basics
+* [ ] Build Pipeline
+* [ ] Unit Tests
+* [ ] Integration Tests
+* [ ] Docker Build
+* [ ] Image Registry
+* [ ] Deployment
+* [ ] Rollback
+* [ ] Blue/Green basics
+* [ ] Canary basics
+
+---
+
+# PHASE 21 — TESTING
+
+* [ ] JUnit 5
+* [ ] Mockito
+* [ ] Unit Testing
+* [ ] Integration Testing
+* [ ] MockMvc
+* [ ] Testcontainers
+* [ ] Contract Testing
+* [ ] End-to-End Testing
+* [ ] Test Pyramid
+
+---
+
+# PHASE 22 — DESIGN PATTERNS
+
+## Creational
+
+* [ ] Singleton
+* [ ] Factory
+* [ ] Abstract Factory
+* [ ] Builder
+* [ ] Prototype
+
+## Structural
+
+* [ ] Adapter
+* [ ] Decorator
+* [ ] Proxy
+* [ ] Facade
+* [ ] Composite
+
+## Behavioral
+
+* [ ] Strategy
+* [ ] Observer
+* [ ] Template Method
+* [ ] Chain of Responsibility
+* [ ] Command
+* [ ] State
+
+## Enterprise
+
+* [ ] Repository
+* [ ] Service Layer
+* [ ] DTO
+* [ ] Specification
+* [ Circuit Breaker
+* [ ] Saga
+* [ ] Outbox
+
+---
+
+# PHASE 23 — SYSTEM DESIGN
+
+## Fundamentals
+
+* [ ] Functional Requirements
+* [ ] Non-functional Requirements
+* [ ] Scalability
+* [ ] Availability
+* [ ] Reliability
+* [ ] Performance
+* [ ] Security
+* [ ] Capacity Estimation
+
+## Components
+
+* [ ] Load Balancer
+* [ ] API Gateway
+* [ ] Cache
+* [ ] Database
+* [ ] Message Broker
+* [ ] CDN
+* [ ] Object Storage
+* [ ] Search Engine
+
+## Design Problems
+
+* [ ] URL Shortener
+* [ ] Notification System
+* [ ] File Storage System
+* [ ] E-commerce
+* [ ] Order Management
+* [ ] Payment System
+* [ ] Food Delivery
+* [ ] Ride Booking
+* [ ] Chat System
+* [ ] Video Streaming
+
+---
+
+# PHASE 24 — PRODUCTION TROUBLESHOOTING
+
+## Scenario 1 — Slow API
+
+* [ ] Check Logs
+* [ ] Check Metrics
+* [ ] Check Trace
+* [ ] Check DB
+* [ ] Check External APIs
+* [ ] Check Thread Pool
+* [ ] Check Connection Pool
+* [ ] Check GC
+
+## Scenario 2 — CPU 100%
+
+* [ ] Thread Dump
+* [ ] Identify CPU Thread
+* [ ] Stack Trace
+* [ ] Infinite Loop?
+* [ ] Deadlock?
+* [ ] Heavy Computation?
+* [ ] GC?
+
+## Scenario 3 — Memory 95%
+
+* [ ] Heap
+* [ ] GC
+* [ ] Heap Dump
+* [ ] Large Objects
+* [ ] Memory Leak
+
+## Scenario 4 — Database Slow
+
+* [ ] Slow Query
+* [ ] Execution Plan
+* [ ] Index
+* [ ] Lock
+* [ ] DB CPU
+* [ ] Connection Pool
+* [ ] Statistics
+
+## Scenario 5 — Kafka Issue
+
+* [ ] Consumer Lag
+* [ ] Consumer Group
+* [ ] Partition
+* [ ] Offset
+* [ ] Rebalance
+* [ ] Failed Consumer
+* [ ] Retry
+* [ ] DLQ
+
+---
+
+# PHASE 25 — ONE PRODUCTION-LEVEL PROJECT
+
+## E-COMMERCE / ORDER MANAGEMENT SYSTEM
+
+### Services
+
+* [ ] API Gateway
+* [ ] Service Registry
+* [ ] Config Server
+* [ ] User Service
+* [ ] Product Service
+* [ ] Order Service
+* [ ] Payment Service
+* [ ] Inventory Service
+* [ ] Notification Service
+
+### Technology
+
+* [ ] Java 17/21
+* [ ] Spring Boot 3
+* [ ] Spring Cloud
+* [ ] Spring Security
+* [ ] JWT
+* [ ] Hibernate/JPA
+* [ ] Oracle/MySQL
+* [ ] Redis
+* [ ] Kafka
+* [ ] WebClient
+* [ ] R2DBC
+* [ ] OpenAPI
+* [ ] OpenTelemetry
+* [ ] Prometheus
+* [ ] Grafana
+* [ ] Docker
+* [ ] Kubernetes
+* [ ] Jenkins
+* [ ] JUnit
+* [ ] Mockito
+* [ ] Testcontainers
+
+---
+
+# PHASE 26 — PROJECT INTERVIEW PREPARATION
+
+Be able to explain:
+
+* [ ] Project Architecture
+* [ ] Service Responsibilities
+* [ ] Database Design
+* [ ] API Design
+* [ ] Authentication
+* [ ] Authorization
+* [ ] Kafka Flow
+* [ ] Redis Strategy
+* [ ] Transaction Management
+* [ ] Error Handling
+* [ ] Retry Strategy
+* [ ] Idempotency
+* [ ] Distributed Transactions
+* [ ] Logging
+* [ ] Monitoring
+* [ ] Distributed Tracing
+* [ ] Deployment
+* [ ] CI/CD
+* [ ] Production Issues
+* [ ] Performance Optimization
+
+---
+
+# PHASE 27 — SENIOR/LEADERSHIP INTERVIEW
+
+## Project Questions
+
+* [ ] Explain your current project.
+* [ ] What is your architecture?
+* [ ] Why did you choose microservices?
+* [ ] Why Kafka?
+* [ ] Why Redis?
+* [ ] Why this database?
+* [ ] What was your biggest technical challenge?
+* [ ] What production issue did you solve?
+* [ ] What performance optimization did you implement?
+* [ ] What was your biggest failure?
+* [ ] What technical decision did you make?
+* [ ] How did you handle an incident?
+* [ ] How did you review code?
+* [ ] How did you mentor developers?
+* [ ] How did you handle disagreement with another developer?
+* [ ] How do you estimate work?
+* [ ] How do you handle production pressure?
+
+---
+
+# PHASE 28 — MOCK INTERVIEW
+
+## ROUND 1
+
+### Core Java + DSA
+
+* [ ] Java
+* [ ] Collections
+* [ ] Multithreading
+* [ ] Java 8+
+* [ ] DSA
+
+## ROUND 2
+
+### Backend
+
+* [ ] SQL
+* [ ] Hibernate
+* [ ] Spring
+* [ ] Spring Boot
+* [ ] REST
+* [ ] Security
+
+## ROUND 3
+
+### Distributed Systems
+
+* [ ] Microservices
+* [ ] Kafka
+* [ ] Redis
+* [ ] Distributed Transactions
+* [ ] Resilience
+
+## ROUND 4
+
+### System Design
+
+* [ ] HLD
+* [ ] LLD
+* [ ] Scalability
+* [ ] Reliability
+* [ ] Failure Handling
+
+## ROUND 5
+
+### Production
+
+* [ ] Debugging
+* [ ] Performance
+* [ ] Monitoring
+* [ ] Incident Management
+
+## ROUND 6
+
+### Managerial
+
+* [ ] Leadership
+* [ ] Ownership
+* [ ] Mentoring
+* [ ] Conflict Resolution
+* [ ] Decision Making
+
+---
+
+# 6-MONTH 8-YEAR EXPERIENCE PLAN
+
+## MONTH 1
+
+### Java + DSA
+
+* [ ] JVM
+* [ ] Core Java
+* [ ] Collections
+* [ ] Java 8+
+* [ ] Multithreading
+* [ ] DSA
+
+## MONTH 2
+
+### Database + Hibernate
+
+* [ ] Advanced SQL
+* [ ] Oracle
+* [ ] Query Optimization
+* [ ] Transactions
+* [ ] Hibernate
+* [ ] JPA
+
+## MONTH 3
+
+### Spring + Spring Boot
+
+* [ ] Spring Core
+* [ ] IoC/DI
+* [ ] AOP
+* [ ] Spring Boot
+* [ ] REST
+* [ ] Validation
+* [ ] Exception Handling
+* [ ] Transactions
+* [ ] Security
+* [ ] JWT
+
+## MONTH 4
+
+### Microservices
+
+* [ ] API Gateway
+* [ ] Eureka
+* [ ] Config Server
+* [ ] Feign
+* [ ] WebClient
+* [ ] Resilience4j
+* [ ] Kafka
+* [ ] Redis
+
+## MONTH 5
+
+### Production Engineering
+
+* [ ] Logging
+* [ ] OpenTelemetry
+* [ ] Prometheus
+* [ ] Grafana
+* [ ] JVM Performance
+* [ ] Docker
+* [ ] Kubernetes
+* [ ] CI/CD
+* [ ] Reactive/WebFlux
+
+## MONTH 6
+
+### Senior Interview Preparation
+
+* [ ] System Design
+* [ ] Production Scenarios
+* [ ] Project Deep Dive
+* [ ] DSA Revision
+* [ ] Java Revision
+* [ ] Spring Revision
+* [ ] Microservices Revision
+* [ ] Mock Interviews
+* [ ] Leadership Questions
+
+---
+
+# DAILY PLAN — 3 HOURS
+
+## 60 MINUTES
+
+### Technical Deep Dive
+
+Study one topic deeply.
+
+## 45 MINUTES
+
+### Coding / Project
+
+Implement the concept.
+
+## 30 MINUTES
+
+### DSA
+
+Solve 1–2 problems.
+
+## 30 MINUTES
+
+### Interview Questions
+
+Practice explaining answers verbally.
+
+## 15 MINUTES
+
+### Revision
+
+Review yesterday's topics.
+
+---
+
+# 8-YEAR INTERVIEW ANSWER FORMULA
+
+For every important question, answer in this order:
+
+1. What is it?
+2. Why do we need it?
+3. How does it work internally?
+4. How have you used it?
+5. What problems can occur?
+6. How did you troubleshoot it?
+7. How did you optimize it?
+8. What alternatives exist?
+9. When should we NOT use it?
+
+---
+
+# FINAL TARGET
+
+I should be able to confidently:
+
+* [ ] Explain JVM internals
+* [ ] Write production-quality Java
+* [ ] Explain concurrency
+* [ ] Solve medium-level DSA
+* [ ] Optimize SQL
+* [ ] Debug Hibernate
+* [ ] Explain Spring internals
+* [ ] Design Spring Boot APIs
+* [ ] Secure APIs with JWT
+* [ ] Design microservices
+* [ ] Explain Kafka deeply
+* [ ] Implement Redis caching
+* [ ] Implement observability
+* [ ] Troubleshoot production issues
+* [ ] Analyze JVM performance
+* [ ] Dockerize applications
+* [ ] Understand Kubernetes deployment
+* [ ] Design scalable systems
+* [ ] Explain architecture decisions
+* [ ] Explain real production incidents
+* [ ] Handle senior/lead-level questions
+* [ ] Defend technical decisions
+
+---
+
+# MOST IMPORTANT FOR 8 YEARS
+
+DO NOT PREPARE LIKE A FRESHER.
+
+Focus distribution:
+
+Core Java              → 15%
+DSA                     → 10%
+SQL + Hibernate         → 15%
+Spring + Spring Boot   → 15%
+Security                → 5%
+Microservices           → 15%
+Kafka + Redis           → 10%
+Observability           → 5%
+Performance             → 5%
+System Design           → 10%
+
+The key difference at 8 years is:
+
+Knowledge
+↓
+Implementation
+↓
+Production Experience
+↓
+Troubleshooting
+↓
+Performance
+↓
+Architecture
+↓
+Technical Decisions
+↓
+Leadership
+
+Your answers should demonstrate all of these levels.
+
