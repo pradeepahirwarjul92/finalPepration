@@ -910,6 +910,1236 @@ linked list / tree
 
 4. Multithreading
 
+1. Process vs Thread
+
+Process
+
+A process is a running instance of a program.
+
+Example:
+
+Chrome
+ ├── Process 1
+ ├── Process 2
+ └── Process 3
+ 
+When you run:
+
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello");
+    }
+}
+
+
+The operating system creates a process for the Java application.
+
+The process has its own:
+
+Memory
+Heap
+Threads
+Resources
+
+
+Thread
+
+A thread is a smallest unit of execution inside a process.
+Example:
+
+Java Process
+│
+├── Main Thread
+│
+├── Worker Thread 1
+│
+├── Worker Thread 2
+│
+└── Worker Thread 3
+
+
+All these threads generally share the process's heap memory.
+But each thread has its own:
+
+Stack
+Program Counter
+Execution path
+
+Important interview point
+Shared between threads
+        ↓
+Heap Memory
+
+Private for each thread
+        ↓
+Stack Memory
+
+This shared heap is one reason why race conditions happen.
+
+2. What happens when a Java program starts?
+
+Consider:
+
+public class Main {
+
+    public static void main(String[] args) {
+        System.out.println("Application Started");
+    }
+}
+
+
+Execution:
+
+Operating System
+       ↓
+Starts JVM Process
+       ↓
+JVM creates Main Thread
+       ↓
+Main Thread executes main()
+       ↓
+Application finishes
+
+The main() method runs inside a thread called:
+
+main
+
+Check it:
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        System.out.println(
+            Thread.currentThread().getName()
+        );
+    }
+}
+
+Output:
+
+main
+
+Thread.currentThread() returns the currently executing thread.
+
+
+. Creating a Thread using the Thread class
+
+The first approach is extending Thread.
+
+class MyThread extends Thread {
+
+    @Override
+    public void run() {
+        System.out.println("My thread is running");
+    }
+}
+
+Start it:
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        MyThread thread = new MyThread();
+
+        thread.start();
+    }
+}
+
+Possible output:
+
+My thread is running
+What happens internally?
+Main Thread
+    │
+    │ creates MyThread
+    ↓
+MyThread Object
+    │
+    │ start()
+    ↓
+JVM creates a new execution thread
+    │
+    ↓
+run() executes
+
+Important:
+
+thread.start();
+
+does not directly call run() like a normal method.
+
+It requests the JVM/OS to start a new thread.
+
+
+4. start() vs run() — Very Important
+
+Consider:
+
+MyThread thread = new MyThread();
+
+thread.run();
+
+Here, no new thread is created.
+
+The run() method executes on the current thread.
+
+Example:
+
+class MyThread extends Thread {
+
+    @Override
+    public void run() {
+        System.out.println(
+            Thread.currentThread().getName()
+        );
+    }
+}
+
+public class Main {
+
+    public static void main(String[] args) {
+
+        MyThread thread = new MyThread();
+
+        thread.run();
+    }
+}
+
+Output:
+
+main
+
+Now:
+
+thread.start();
+
+Possible output:
+
+Thread-0
+Visual difference
+thread.run()
+
+Main Thread
+     │
+     ↓
+run()
+     │
+     ↓
+Continues
+
+Versus:
+
+thread.start()
+
+Main Thread
+     │
+     ├──────────────┐
+     ↓              ↓
+Continue         New Thread
+                    │
+                    ↓
+                  run()
+Interview question
+
+Can we call run() directly?
+
+Yes.
+
+But it behaves like a normal method call. It does not create a new thread.
+
+## Using runnable 
+class MyTask implements Runnable{
+
+	@Override
+	public void run() {
+		System.out.println(Thread.currentThread().getName());		
+		System.out.println("Task is running .. ");
+		
+	}
+	
+}
+
+public class MyThreadV2 {
+	
+	public static void main(String[] args) {
+		MyTask task = new MyTask();
+		
+		System.out.println(Thread.currentThread().getName());
+		
+		Thread thread = new Thread(task);
+		thread.start();
+	}
+
+}
+
+
+
+
+
+| Thread                              | Runnable                       |
+| ----------------------------------- | ------------------------------ |
+| Class                               | Functional interface           |
+| Extend `Thread`                     | Implement `Runnable`           |
+| Cannot extend another class         | Can still extend another class |
+| Task and thread are tightly coupled | Task separated from thread     |
+| Less flexible                       | More flexible                  |
+| Less preferred                      | Preferred                      |
+
+
+## Why is Runnable preferred?
+
+Suppose:
+
+class Employee {
+}
+
+Java does not support multiple class inheritance.
+
+So this is impossible:
+
+class MyTask extends Employee, Thread {
+}
+
+But this works:
+
+class MyTask extends Employee implements Runnable {
+}
+
+Also, Runnable separates:
+
+WHAT TO DO
+    ↓
+Runnable
+
+WHO EXECUTES IT
+    ↓
+Thread / ExecutorService
+
+This separation becomes very important when you learn:
+
+ExecutorService
+ThreadPoolExecutor
+CompletableFuture
+
+
+## 7. Thread Lifecycle
+
+A simplified Java thread lifecycle:
+
+NEW
+ │
+ │ start()
+ ↓
+RUNNABLE
+ │
+ ├───────────────┐
+ │               │
+ │ waiting       │ lock/sleep/wait/join
+ ↓               ↓
+RUNNING       WAITING / BLOCKED / TIMED_WAITING
+ │               │
+ └───────────────┘
+        │
+        ↓
+    TERMINATED
+
+The important states are:
+
+
+NEW
+Thread thread = new Thread();
+
+Thread object exists but hasn't started.
+
+State = NEW
+
+
+RUNNABLE
+
+After:
+
+thread.start();
+
+The thread is ready to run or currently executing.
+
+State = RUNNABLE
+
+The OS scheduler decides when it actually gets CPU time.
+
+BLOCKED
+
+A thread is waiting to acquire a monitor lock.
+
+Example:
+
+synchronized(lock) {
+    // critical section
+}
+
+If another thread already owns lock:
+
+Thread 1
+   │
+   │ owns lock
+   ↓
+
+Thread 2
+   │
+   └── BLOCKED
+
+WAITING
+
+The thread waits indefinitely for another thread/action.
+
+Examples:
+
+object.wait();
+thread.join();
+
+TIMED_WAITING
+
+The thread waits for a specific amount of time.
+
+Examples:
+
+Thread.sleep(5000);
+
+thread.join(5000);
+TERMINATED
+
+The run() method has completed.
+
+public void run() {
+
+    System.out.println("Finished");
+}
+
+After completion:
+
+State = TERMINATED
+
+A terminated thread cannot be started again.
+
+This will throw an exception:
+
+Thread thread = new Thread();
+
+thread.start();
+thread.start();
+
+You will get:
+
+IllegalThreadStateException
+
+
+
+8. Important Thread Methods
+
+getName()
+Thread.currentThread().getName();
+setName()
+Thread thread = new Thread();
+
+thread.setName("Payment-Thread");
+getId()
+Thread.currentThread().threadId();
+isAlive()
+thread.isAlive();
+
+Returns:
+
+true  → Thread is executing
+false → Thread finished or not started
+currentThread()
+Thread current = Thread.currentThread();
+
+Very useful for debugging.
+
+9. sleep()
+
+sleep() pauses the current thread.
+
+Example:
+
+public class SleepExample {
+
+    public static void main(String[] args)
+            throws InterruptedException {
+
+        System.out.println("Started");
+
+        Thread.sleep(3000);
+
+        System.out.println("Finished after 3 seconds");
+    }
+}
+
+Execution:
+
+Started
+   ↓
+Thread sleeps 3 seconds
+   ↓
+Finished
+
+Important:
+
+sleep() does not release a synchronized lock.
+
+Example:
+
+synchronized (lock) {
+
+    Thread.sleep(5000);
+}
+
+During those 5 seconds:
+
+Thread owns the lock
+       ↓
+Other threads cannot enter
+
+This is an important interview question.
+
+10. join()
+
+join() makes the current thread wait for another thread to finish.
+
+Example:
+
+
+package com.heg.phase1;
+
+public class MyTaskV2 extends Thread {
+	
+	public void run() {
+		for(int i = 1 ; i<=5 ;i++) {
+			System.out.println("Worker : " +i);
+		}
+	}
+	
+	public static void main(String[] args) {
+		MyTaskV2 task = new MyTaskV2();
+		task.start();
+		try {
+			task.join();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		System.out.println("Main Finished");
+	}
+
+}
+
+OUTPUT ::
+Worker : 1
+Worker : 2
+Worker : 3
+Worker : 4
+Worker : 5
+Main Finished
+
+
+Execution:
+
+Main Thread
+    │
+    │ start worker
+    ↓
+Worker Thread Running
+    │
+Main Thread calls join()
+    │
+    └──── WAITING ────┐
+                      │
+Worker finishes       │
+                      ↓
+Main continues
+
+Without join(), output order may be unpredictable.
+
+
+interrupt()
+
+interrupt() is a request to a thread to stop what it is doing.
+
+It does not forcefully kill the thread.
+
+
+
+12. Daemon Thread
+
+A daemon thread is a background thread.
+
+Example:
+
+Thread thread = new Thread(() -> {
+
+    while (true) {
+        System.out.println("Background task");
+    }
+
+});
+
+thread.setDaemon(true);
+
+thread.start();
+
+When all user threads finish:
+
+JVM
+ ↓
+Stops daemon threads
+ ↓
+Application exits
+
+Examples of background-style work:
+
+Garbage collection
+Monitoring
+Cleanup tasks
+
+Important:
+
+thread.setDaemon(true);
+
+must be called before:
+
+thread.start();
+
+Otherwise:
+
+IllegalThreadStateException
+
+
+13. Thread Priority
+
+Java provides priorities:
+
+Thread.MIN_PRIORITY  // 1
+
+Thread.NORM_PRIORITY // 5
+
+Thread.MAX_PRIORITY  // 10
+
+Example:
+
+thread.setPriority(Thread.MAX_PRIORITY);
+
+But do not depend on priority for correctness.
+
+The operating system and JVM scheduler may handle priorities differently.
+
+For production applications:
+
+Thread priority is rarely a good solution to performance problems.
+
+
+
+
+## Callable and Future
+
+
+1. Callable
+
+Callable is similar to Runnable, but it can return a result.
+
+Callable<Integer> task = () -> {
+    return 10 + 20;
+};
+
+The method inside Callable is:
+
+V call() throws Exception;
+
+Here:
+
+V = Return Type
+
+Example:
+
+Callable<String> task = () -> {
+    return "Hello";
+};
+
+The internal idea is:
+
+Runnable
+    ↓
+void run()
+    ↓
+No result
+
+
+Callable
+    ↓
+V call()
+    ↓
+Returns result
+
+
+EXample :: 
+public class CallableExample {
+	public static void main(String[] args) {
+		Callable<Integer> task = ()-> {
+			System.out.println("Running in " + Thread.currentThread().getName()					
+					);
+			Thread.sleep(2000);
+			return 10 + 20;
+		};
+		
+		Integer result=0;
+		try {
+			result = task.call();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		System.out.println("Result :: " +result);
+		
+
+	}
+
+}
+
+Output:
+
+Running in: main
+Result: 30
+
+
+Important point
+
+Calling:
+
+task.call();
+
+does not create a new thread.
+
+It is just a normal method call.
+
+So the output shows:
+
+main
+
+To execute Callable asynchronously, we need an ExecutorService.
+
+Before that, understand Future.
+
+3. What is Future?
+
+Suppose you submit a task that takes 5 seconds:
+
+Start calculation
+      ↓
+Working...
+      ↓
+Working...
+      ↓
+Result available
+
+You don't have the result immediately.
+
+Future represents:
+
+A result that will be available in the future.
+
+Example:
+
+Future<Integer> future;
+
+Think of it as a placeholder:
+
+Future<Integer>
+
+┌─────────────────────┐
+│ Result not ready yet │
+└─────────────────────┘
+
+        ↓ Task completes
+
+┌─────────────────────┐
+│ Result = 30          │
+└─────────────────────┘
+
+
+
+public class FutureExample {
+	public static void main(String[] args) {
+		
+		 // Create thread pool with 2 worker threads
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		
+		Callable<Integer> task = ()-> {
+			System.out.println("Task Running in : " 
+							+ Thread.currentThread().getName());
+		
+
+			Thread.sleep(3000);
+			return 10+20;
+		};
+		
+		
+		Future<Integer> future = executor.submit(task);
+		
+		
+		System.out.println("Main thread continue ... ");
+		
+		//Wait for result 
+		
+		Integer result=0;
+		try {
+			result = future.get();
+		} catch (InterruptedException | ExecutionException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		System.out.println("Result :" +result);
+		
+		//Shutdown thread pool 
+		
+		executor.shutdown();
+		
+		
+	}
+
+}
+
+
+5. Understand the Execution Step-by-Step
+
+Let's debug what happens.
+
+Step 1: Main thread starts
+Thread = main
+
+
+Step 2: Create ExecutorService
+ExecutorService executor =
+        Executors.newFixedThreadPool(2);
+
+Now you have the ability to use worker threads.
+
+Conceptually:
+
+ExecutorService
+│
+├── Worker Thread 1
+│
+└── Worker Thread 2
+
+
+Step 3: Create Callable
+Callable<Integer> task = () -> {
+    Thread.sleep(3000);
+    return 30;
+};
+
+At this point:
+
+Task created
+BUT NOT RUNNING
+
+Step 4: Submit task
+Future<Integer> future =
+        executor.submit(task);
+
+Now:
+
+Main Thread
+     │
+     │ submit(task)
+     ↓
+ExecutorService
+     │
+     └──────────────→ Worker Thread
+                            │
+                            ↓
+                         task.call()
+
+At the same time, the main thread receives:
+
+Future<Integer>
+
+The task and main thread can continue independently.
+
+
+
+6. Future.get() — Very Important
+Integer result = future.get();
+
+get() means:
+
+"Give me the result. If it is not ready, wait."
+
+Example:
+
+Main Thread                    Worker Thread
+
+submit()
+   │
+   │                           Task running
+   │                                │
+future.get()                        │
+   │                                │
+WAITING ----------------------------│
+   │                                │
+   │                           Task finishes
+   │                                │
+   └──────────── Result = 30 ◄──────┘
+
+So:
+
+future.get();
+
+is a blocking operation.
+
+
+. Why Use Future If get() Blocks?
+
+Because you don't need to call get() immediately.
+
+Bad usage:
+
+Future<Integer> future =
+        executor.submit(task);
+
+Integer result = future.get();
+
+If you immediately call get(), the main thread waits.
+
+Better:
+
+Future<Integer> future =
+        executor.submit(task);
+
+// Do some other work here
+
+System.out.println("Processing other work...");
+
+// Get result only when needed
+Integer result = future.get();
+
+Flow:
+
+Submit Task A
+      │
+      ├── Worker executes Task A
+      │
+Main Thread
+      │
+      ├── Do Task B
+      │
+      ├── Do Task C
+      │
+      ↓
+Need Result A?
+      ↓
+future.get()
+
+
+8. Future Methods
+get()
+Integer result = future.get();
+
+Wait indefinitely.
+
+get(timeout)
+Integer result =
+        future.get(5, TimeUnit.SECONDS);
+
+Wait for a maximum of 5 seconds.
+
+If the result is not ready:
+
+TimeoutException
+
+Example:
+
+try {
+
+    Integer result =
+            future.get(5, TimeUnit.SECONDS);
+
+} catch (TimeoutException e) {
+
+    System.out.println("Task took too long");
+}
+
+This is important in production systems.
+
+Example:
+
+Order Service
+      │
+      ↓
+Call Payment Service
+      │
+      ↓
+Wait maximum 3 seconds
+      │
+      ├── Response → Continue
+      │
+      └── Timeout → Handle failure
+9. isDone()
+future.isDone();
+
+Returns:
+
+true
+
+if:
+
+Task completed successfully
+Task failed
+Task was cancelled
+
+Example:
+
+if (future.isDone()) {
+
+    System.out.println("Task finished");
+}
+
+Important:
+
+isDone() == true
+
+does not always mean:
+
+Task completed successfully
+
+It may also mean the task failed or was cancelled.
+
+10. isCancelled()
+future.isCancelled();
+
+Checks whether the task was cancelled.
+
+11. cancel()
+future.cancel(true);
+
+The boolean is:
+
+true  → Request interruption if task is running
+false → Don't interrupt if already running
+
+Example:
+
+Future<Integer> future =
+        executor.submit(() -> {
+
+            while (true) {
+
+                if (Thread.currentThread().isInterrupted()) {
+
+                    System.out.println("Stopping task");
+
+                    break;
+                }
+            }
+
+            return 100;
+        });
+
+Thread.sleep(2000);
+
+future.cancel(true);
+
+Important:
+
+Cancellation is cooperative.
+
+cancel(true) does not guarantee that arbitrary code stops immediately.
+
+The running task should respond properly to interruption.
+
+
+12. Runnable vs Callable vs Future
+
+| Feature                | Runnable          | Callable | Future                               |
+| ---------------------- | ----------------- | -------- | ------------------------------------ |
+| Represents task        | Yes               | Yes      | No, represents result/control        |
+| Return value           | No                | Yes      | Gets result                          |
+| Checked exception      | No direct support | Yes      | Reports task failure through `get()` |
+| Method                 | `run()`           | `call()` | `get()`, `cancel()` etc.             |
+| Asynchronous by itself | No                | No       | No — used with execution framework   |
+
+
+Important relationship:
+
+Callable
+   │
+   │ submit()
+   ↓
+ExecutorService
+   │
+   │ Executes task
+   ↓
+Future
+   │
+   │ get()
+   ↓
+Result
+
+
+13. Runnable with Future
+
+Even Runnable can be submitted.
+
+Future<?> future =
+        executor.submit(() -> {
+
+            System.out.println("Task running");
+        });
+
+Because Runnable has no result:
+
+Future<?> 
+
+You can still use:
+
+future.get();
+
+to wait until the task completes.
+
+
+14. Multiple Callable Tasks
+
+package com.heg.phase1;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+public class MultipleTasksExample {
+
+	public static void main(String[] args) throws InterruptedException, ExecutionException {
+		ExecutorService executor = Executors.newFixedThreadPool(3);
+		
+		Future<Integer> future1 = executor.submit(
+				()-> {
+				Thread.sleep(3000);
+				System.out.println("Task 1 finished ");
+				return 10;
+				});
+		
+		Future<Integer> future2 = executor.submit(
+				()-> {
+				Thread.sleep(3000);
+				System.out.println("Task 2 finished ");
+				return 20;
+				});
+		
+		
+		Future<Integer> future3 = executor.submit(
+				()-> {
+				Thread.sleep(3000);
+				System.out.println("Task 3 finished ");
+				return 30;
+				});
+		
+		 System.out.println("All tasks submitted");
+		 
+		 int result = 
+				 future1.get()
+				 +future2.get()
+				 +future3.get();
+		 
+		 System.out.println("Total = " +result);
+		 
+		 executor.shutdown();
+		
+	}
+}
+
+Possible execution:
+
+Main Thread
+    │
+    ├── Submit Task 1 ──→ Worker-1
+    │
+    ├── Submit Task 2 ──→ Worker-2
+    │
+    └── Submit Task 3 ──→ Worker-3
+
+
+Worker-1 → Sleep 3 seconds
+Worker-2 → Sleep 2 seconds
+Worker-3 → Sleep 1 second
+
+
+Completion order:
+
+Task 3
+Task 2
+Task 1
+
+But the main thread calls:
+
+future1.get();
+
+first.
+
+So it waits for Task 1, even though Tasks 2 and 3 may already have finished.
+
+This is one limitation you'll later solve more elegantly with:
+
+CompletableFuture
+
+
+
+Important Problem: Creating Threads Manually
+
+Imagine:
+
+for (int i = 0; i < 10000; i++) {
+
+    new Thread(() -> {
+
+        // process request
+
+    }).start();
+}
+
+
+You could create thousands of threads.
+
+Problems:
+
+Too many threads
+       ↓
+High memory usage
+       ↓
+Context switching
+       ↓
+High CPU
+       ↓
+Application slowdown
+       ↓
+Possible crash
+
+This is why production applications use:
+
+ExecutorService
+        ↓
+Thread Pool
+        ↓
+Controlled number of threads
+        ↓
+Task Queue
+
+
+
+
+
 Must know:
 
 Thread
