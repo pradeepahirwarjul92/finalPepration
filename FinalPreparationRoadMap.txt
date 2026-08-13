@@ -1669,6 +1669,7 @@ Future<Integer>
 
 
 
+
 public class FutureExample {
 	public static void main(String[] args) {
 		
@@ -2137,6 +2138,5482 @@ Controlled number of threads
 Task Queue
 
 
+## Phase 3: ExecutorService and ThreadPoolExecutor — Deep Practice
+
+Step 1 → Why Thread Pool?
+Step 2 → Executor vs ExecutorService
+Step 3 → execute() vs submit()
+Step 4 → shutdown() vs shutdownNow()
+Step 5 → ThreadPoolExecutor
+Step 6 → corePoolSize
+Step 7 → maximumPoolSize
+Step 8 → BlockingQueue
+Step 9 → keepAliveTime
+Step 10 → Rejection Policies
+Step 11 → Production problems
+
+Step 1: Why do we need a Thread Pool?
+Ans : Suppose your application receives 100 requests
+
+for (int i = 1; i <= 100; i++) {
+
+    new Thread(() -> {
+        processRequest();
+    }).start();
+}
+
+
+You may create:
+
+100 Requests
+     ↓
+100 Threads
+
+If requests become:
+
+10,000 Requests
+       ↓
+10,000 Threads
+
+Problems:
+
+Too many threads
+      ↓
+More stack memory
+      ↓
+More context switching
+      ↓
+CPU spends time switching threads
+      ↓
+Application becomes slow
+      ↓
+Possible OutOfMemoryError
+
+** Solution: Thread Pool
+Instead of creating a new thread for every task:
+
+1000 Tasks
+     ↓
+┌──────────────┐
+│  Task Queue  │
+└──────────────┘
+     ↓
+┌────┬────┬────┐
+│ T1 │ T2 │ T3 │
+└────┴────┴────┘
+
+The same threads are reused.
+
+Example:
+
+Thread-1
+
+Task-1
+  ↓
+Task-4
+  ↓
+Task-7
+  ↓
+Task-10
+
+This is the main benefit:
+
+Create a limited number of threads and reuse them to execute many tasks.
+
+
+Step 2: First ExecutorService Program
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ExecutorExample {
+
+    public static void main(String[] args) {
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+
+        for (int i = 1; i <= 5; i++) {
+
+            int taskNumber = i;
+
+            executor.execute(() -> {
+
+                System.out.println(
+                    "Task " + taskNumber
+                    + " running on "
+                    + Thread.currentThread().getName()
+                );
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+
+        executor.shutdown();
+    }
+}
+
+
+The important point:
+
+Worker threads do not die after one task. They take another task from the queue.
+
+Step 3: execute() vs submit()
+
+execute()
+executor.execute(() -> {
+    System.out.println("Hello");
+});
+
+Return type:
+
+void
+
+Use it when you only want to execute a task.
+
+
+submit()
+Future<Integer> future =
+    executor.submit(() -> {
+        return 100;
+    });
+
+Return type:
+
+Future<Integer>
+
+You can later do:
+
+Integer result = future.get();
+
+Simple comparison
+| Feature                               | `execute()` | `submit()` |
+| ------------------------------------- | ----------- | ---------- |
+| Accepts `Runnable`                    | Yes         | Yes        |
+| Accepts `Callable`                    | No          | Yes        |
+| Returns result                        | No          | Yes        |
+| Returns `Future`                      | No          | Yes        |
+| Can cancel task                       | No          | Yes        |
+| Exception accessible through `Future` | No          | Yes        |
+
+Step 4: shutdown()
+
+After submitting tasks:
+
+executor.shutdown();
+
+It means:
+
+Do not accept new tasks
+          ↓
+Finish already submitted tasks
+          ↓
+Stop worker threads
+
+
+Example:
+
+executor.execute(task1);
+executor.execute(task2);
+
+executor.shutdown();
+
+executor.execute(task3); // Exception
+
+The last task will throw:
+
+RejectedExecutionException
+
+because the executor is shutting down.
+
+
+Step 5: shutdownNow()
+executor.shutdownNow();
+
+Conceptually:
+
+Stop accepting new tasks
+        ↓
+Interrupt running tasks
+        ↓
+Remove tasks that have not started
+
+Important:
+
+shutdownNow()
+
+does not guarantee immediate termination.
+
+The running task must cooperate with interruption.
+
+Example:
+
+while (!Thread.currentThread().isInterrupted()) {
+
+    doWork();
+}
+
+Or if using blocking methods:
+
+try {
+    Thread.sleep(10000);
+} catch (InterruptedException e) {
+
+    Thread.currentThread().interrupt();
+    return;
+}
+
+
+Phase 2: Callable and Future
+
+In Phase 1, you created threads manually:
+
+Thread thread = new Thread(() -> {
+    System.out.println("Task running");
+});
+
+thread.start();
+
+But there is a problem.
+
+Problem with Runnable
+
+Runnable has this method:
+
+void run();
+
+It:
+
+Cannot return a value
+Cannot directly throw checked exceptions
+
+Example:
+
+Runnable task = () -> {
+    int result = 10 + 20;
+
+    // How do we return result?
+};
+
+This is where Callable comes in.
+
+1. Callable
+
+Callable is similar to Runnable, but it can return a result.
+
+Callable<Integer> task = () -> {
+    return 10 + 20;
+};
+
+The method inside Callable is:
+
+V call() throws Exception;
+
+Here:
+
+V = Return Type
+
+Example:
+
+Callable<String> task = () -> {
+    return "Hello";
+};
+
+The internal idea is:
+
+Runnable
+    ↓
+void run()
+    ↓
+No result
+
+
+Callable
+    ↓
+V call()
+    ↓
+Returns result
+2. Complete Callable Example
+import java.util.concurrent.Callable;
+
+public class CallableExample {
+
+    public static void main(String[] args) throws Exception {
+
+        Callable<Integer> task = () -> {
+
+            System.out.println(
+                "Running in: "
+                + Thread.currentThread().getName()
+            );
+
+            Thread.sleep(2000);
+
+            return 10 + 20;
+        };
+
+        Integer result = task.call();
+
+        System.out.println("Result: " + result);
+    }
+}
+
+Output:
+
+Running in: main
+Result: 30
+Important point
+
+Calling:
+
+task.call();
+
+does not create a new thread.
+
+It is just a normal method call.
+
+So the output shows:
+
+main
+
+To execute Callable asynchronously, we need an ExecutorService.
+
+Before that, understand Future.
+
+3. What is Future?
+
+Suppose you submit a task that takes 5 seconds:
+
+Start calculation
+      ↓
+Working...
+      ↓
+Working...
+      ↓
+Result available
+
+You don't have the result immediately.
+
+Future represents:
+
+A result that will be available in the future.
+
+Example:
+
+Future<Integer> future;
+
+Think of it as a placeholder:
+
+Future<Integer>
+
+┌─────────────────────┐
+│ Result not ready yet │
+└─────────────────────┘
+
+        ↓ Task completes
+
+┌─────────────────────┐
+│ Result = 30          │
+└─────────────────────┘
+4. First ExecutorService + Callable Example
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+public class FutureExample {
+
+    public static void main(String[] args) throws Exception {
+
+        // Create thread pool with 2 worker threads
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+
+        Callable<Integer> task = () -> {
+
+            System.out.println(
+                    "Task running in: "
+                    + Thread.currentThread().getName()
+            );
+
+            Thread.sleep(3000);
+
+            return 10 + 20;
+        };
+
+        // Submit task to thread pool
+        Future<Integer> future =
+                executor.submit(task);
+
+        System.out.println("Main thread continues...");
+
+        // Wait for result
+        Integer result = future.get();
+
+        System.out.println("Result: " + result);
+
+        // Shutdown thread pool
+        executor.shutdown();
+    }
+}
+5. Understand the Execution Step-by-Step
+
+Let's debug what happens.
+
+Step 1: Main thread starts
+Thread = main
+Step 2: Create ExecutorService
+ExecutorService executor =
+        Executors.newFixedThreadPool(2);
+
+Now you have the ability to use worker threads.
+
+Conceptually:
+
+ExecutorService
+│
+├── Worker Thread 1
+│
+└── Worker Thread 2
+Step 3: Create Callable
+Callable<Integer> task = () -> {
+    Thread.sleep(3000);
+    return 30;
+};
+
+At this point:
+
+Task created
+BUT NOT RUNNING
+Step 4: Submit task
+Future<Integer> future =
+        executor.submit(task);
+
+Now:
+
+Main Thread
+     │
+     │ submit(task)
+     ↓
+ExecutorService
+     │
+     └──────────────→ Worker Thread
+                            │
+                            ↓
+                         task.call()
+
+At the same time, the main thread receives:
+
+Future<Integer>
+
+The task and main thread can continue independently.
+
+6. Future.get() — Very Important
+Integer result = future.get();
+
+get() means:
+
+"Give me the result. If it is not ready, wait."
+
+Example:
+
+Main Thread                    Worker Thread
+
+submit()
+   │
+   │                           Task running
+   │                                │
+future.get()                        │
+   │                                │
+WAITING ----------------------------│
+   │                                │
+   │                           Task finishes
+   │                                │
+   └──────────── Result = 30 ◄──────┘
+
+So:
+
+future.get();
+
+is a blocking operation.
+
+7. Why Use Future If get() Blocks?
+
+Because you don't need to call get() immediately.
+
+Bad usage:
+
+Future<Integer> future =
+        executor.submit(task);
+
+Integer result = future.get();
+
+If you immediately call get(), the main thread waits.
+
+Better:
+
+Future<Integer> future =
+        executor.submit(task);
+
+// Do some other work here
+
+System.out.println("Processing other work...");
+
+// Get result only when needed
+Integer result = future.get();
+
+Flow:
+
+Submit Task A
+      │
+      ├── Worker executes Task A
+      │
+Main Thread
+      │
+      ├── Do Task B
+      │
+      ├── Do Task C
+      │
+      ↓
+Need Result A?
+      ↓
+future.get()
+8. Future Methods
+get()
+Integer result = future.get();
+
+Wait indefinitely.
+
+get(timeout)
+Integer result =
+        future.get(5, TimeUnit.SECONDS);
+
+Wait for a maximum of 5 seconds.
+
+If the result is not ready:
+
+TimeoutException
+
+Example:
+
+try {
+
+    Integer result =
+            future.get(5, TimeUnit.SECONDS);
+
+} catch (TimeoutException e) {
+
+    System.out.println("Task took too long");
+}
+
+This is important in production systems.
+
+Example:
+
+Order Service
+      │
+      ↓
+Call Payment Service
+      │
+      ↓
+Wait maximum 3 seconds
+      │
+      ├── Response → Continue
+      │
+      └── Timeout → Handle failure
+9. isDone()
+future.isDone();
+
+Returns:
+
+true
+
+if:
+
+Task completed successfully
+Task failed
+Task was cancelled
+
+Example:
+
+if (future.isDone()) {
+
+    System.out.println("Task finished");
+}
+
+Important:
+
+isDone() == true
+
+does not always mean:
+
+Task completed successfully
+
+It may also mean the task failed or was cancelled.
+
+10. isCancelled()
+future.isCancelled();
+
+Checks whether the task was cancelled.
+
+11. cancel()
+future.cancel(true);
+
+The boolean is:
+
+true  → Request interruption if task is running
+false → Don't interrupt if already running
+
+Example:
+
+Future<Integer> future =
+        executor.submit(() -> {
+
+            while (true) {
+
+                if (Thread.currentThread().isInterrupted()) {
+
+                    System.out.println("Stopping task");
+
+                    break;
+                }
+            }
+
+            return 100;
+        });
+
+Thread.sleep(2000);
+
+future.cancel(true);
+
+Important:
+
+Cancellation is cooperative.
+
+cancel(true) does not guarantee that arbitrary code stops immediately.
+
+The running task should respond properly to interruption.
+
+12. Runnable vs Callable vs Future
+Feature	Runnable	Callable	Future
+Represents task	Yes	Yes	No, represents result/control
+Return value	No	Yes	Gets result
+Checked exception	No direct support	Yes	Reports task failure through get()
+Method	run()	call()	get(), cancel() etc.
+Asynchronous by itself	No	No	No — used with execution framework
+
+Important relationship:
+
+Callable
+   │
+   │ submit()
+   ↓
+ExecutorService
+   │
+   │ Executes task
+   ↓
+Future
+   │
+   │ get()
+   ↓
+Result
+13. Runnable with Future
+
+Even Runnable can be submitted.
+
+Future<?> future =
+        executor.submit(() -> {
+
+            System.out.println("Task running");
+        });
+
+Because Runnable has no result:
+
+Future<?> 
+
+You can still use:
+
+future.get();
+
+to wait until the task completes.
+
+14. Multiple Callable Tasks
+
+This example is very important for understanding concurrency.
+
+import java.util.concurrent.*;
+
+public class MultipleTasksExample {
+
+    public static void main(String[] args)
+            throws Exception {
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(3);
+
+        Future<Integer> future1 =
+                executor.submit(() -> {
+
+                    Thread.sleep(3000);
+
+                    System.out.println("Task 1 finished");
+
+                    return 10;
+                });
+
+        Future<Integer> future2 =
+                executor.submit(() -> {
+
+                    Thread.sleep(2000);
+
+                    System.out.println("Task 2 finished");
+
+                    return 20;
+                });
+
+        Future<Integer> future3 =
+                executor.submit(() -> {
+
+                    Thread.sleep(1000);
+
+                    System.out.println("Task 3 finished");
+
+                    return 30;
+                });
+
+        System.out.println("All tasks submitted");
+
+        int result =
+                future1.get()
+                + future2.get()
+                + future3.get();
+
+        System.out.println("Total = " + result);
+
+        executor.shutdown();
+    }
+}
+
+Possible execution:
+
+Main Thread
+    │
+    ├── Submit Task 1 ──→ Worker-1
+    │
+    ├── Submit Task 2 ──→ Worker-2
+    │
+    └── Submit Task 3 ──→ Worker-3
+
+
+Worker-1 → Sleep 3 seconds
+Worker-2 → Sleep 2 seconds
+Worker-3 → Sleep 1 second
+
+Completion order:
+
+Task 3
+Task 2
+Task 1
+
+But the main thread calls:
+
+future1.get();
+
+first.
+
+So it waits for Task 1, even though Tasks 2 and 3 may already have finished.
+
+This is one limitation you'll later solve more elegantly with:
+
+CompletableFuture
+15. Exception Handling with Future
+
+Suppose:
+
+Future<Integer> future =
+        executor.submit(() -> {
+
+            int result = 10 / 0;
+
+            return result;
+        });
+
+The exception occurs inside the worker thread.
+
+When you call:
+
+future.get();
+
+you receive:
+
+ExecutionException
+
+Example:
+
+try {
+
+    Integer result = future.get();
+
+} catch (ExecutionException e) {
+
+    System.out.println(
+            "Actual error: "
+            + e.getCause()
+    );
+
+}
+
+Flow:
+
+Worker Thread
+      │
+      ↓
+ArithmeticException
+      │
+      ↓
+Future stores failure
+      │
+      ↓
+future.get()
+      │
+      ↓
+ExecutionException
+
+Use:
+
+e.getCause()
+
+to find the actual exception.
+
+16. Production Example
+
+Imagine an API needs data from three systems:
+
+User Service
+Order Service
+Inventory Service
+
+Sequential execution:
+
+User API
+   ↓ 2 sec
+Order API
+   ↓ 3 sec
+Inventory API
+   ↓ 1 sec
+
+Total = 6 seconds
+
+Using multiple tasks:
+
+                ┌── User API (2 sec)
+Request ────────┼── Order API (3 sec)
+                └── Inventory API (1 sec)
+
+Total ≈ 3 seconds
+
+Using ExecutorService:
+
+ExecutorService executor =
+        Executors.newFixedThreadPool(3);
+
+Future<String> userFuture =
+        executor.submit(() -> getUser());
+
+Future<String> orderFuture =
+        executor.submit(() -> getOrders());
+
+Future<String> inventoryFuture =
+        executor.submit(() -> getInventory());
+
+// Results are collected later
+String user = userFuture.get();
+String orders = orderFuture.get();
+String inventory = inventoryFuture.get();
+
+executor.shutdown();
+
+This is the basic idea of concurrent service calls.
+
+Important Problem: Creating Threads Manually
+
+Imagine:
+
+for (int i = 0; i < 10000; i++) {
+
+    new Thread(() -> {
+
+        // process request
+
+    }).start();
+}
+
+You could create thousands of threads.
+
+Problems:
+
+Too many threads
+       ↓
+High memory usage
+       ↓
+Context switching
+       ↓
+High CPU
+       ↓
+Application slowdown
+       ↓
+Possible crash
+
+This is why production applications use:
+
+ExecutorService
+        ↓
+Thread Pool
+        ↓
+Controlled number of threads
+        ↓
+Task Queue
+Phase 2 Summary
+Runnable
+   ↓
+No return value
+
+Callable
+   ↓
+Returns value
+
+ExecutorService
+   ↓
+Executes Callable/Runnable asynchronously
+
+Future
+   ↓
+Represents pending result
+
+future.get()
+   ↓
+Wait for result
+   ↓
+Blocking
+Must-Practice Exercises
+Create a Callable<Integer> that returns the sum of two numbers.
+Create 3 Callable tasks with different sleep times.
+Use Future.get() and observe blocking.
+Use get(2, TimeUnit.SECONDS) and handle TimeoutException.
+Cancel a long-running task with cancel(true).
+Throw an exception inside a Callable and inspect it using ExecutionException.
+Submit both a Runnable and a Callable to an ExecutorService.
+Next: Phase 3
+
+ExecutorService and ThreadPoolExecutor — this is one of the most important multithreading topics for Java backend production systems and senior-level interviews.
+
+phase 3
+Phase 3: ExecutorService and ThreadPoolExecutor
+
+This is one of the most important multithreading topics for Java backend developers.
+
+In Phase 2, you used:
+
+ExecutorService executor =
+        Executors.newFixedThreadPool(2);
+
+Now we will understand:
+
+What is ExecutorService?
+        ↓
+Why Thread Pool?
+        ↓
+How tasks are executed?
+        ↓
+execute() vs submit()
+        ↓
+shutdown()
+        ↓
+ThreadPoolExecutor internals
+        ↓
+corePoolSize
+maximumPoolSize
+workQueue
+keepAliveTime
+RejectedExecutionHandler
+1. Why do we need ExecutorService?
+
+Suppose 1,000 requests come to your application.
+
+If you do this:
+
+for (int i = 0; i < 1000; i++) {
+
+    new Thread(() -> {
+        processRequest();
+    }).start();
+}
+
+You may create:
+
+1000 Threads
+
+Problems:
+
+Too many threads
+       ↓
+Each thread needs memory
+       ↓
+Too much context switching
+       ↓
+CPU overhead
+       ↓
+Application becomes slow
+       ↓
+Possible OutOfMemoryError
+
+Instead, use a fixed number of worker threads.
+
+1000 Tasks
+    │
+    ▼
+┌───────────────┐
+│   Task Queue  │
+└───────────────┘
+    │
+    ▼
+┌─────┬─────┬─────┐
+│ T1  │ T2  │ T3  │
+│     │ T4  │ T5  │
+└─────┴─────┴─────┘
+
+Only 5 threads execute tasks.
+
+This is called a Thread Pool.
+
+2. What is ExecutorService?
+
+ExecutorService is an interface used to manage and execute asynchronous tasks.
+
+Task
+ ↓
+ExecutorService
+ ↓
+Thread Pool
+ ↓
+Worker Thread
+ ↓
+Execute Task
+
+Example:
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ExecutorExample {
+
+    public static void main(String[] args) {
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(3);
+
+        executor.execute(() -> {
+
+            System.out.println(
+                    "Running in: "
+                    + Thread.currentThread().getName()
+            );
+        });
+
+        executor.shutdown();
+    }
+}
+
+Possible output:
+
+Running in: pool-1-thread-1
+3. How does a Thread Pool work?
+
+Suppose:
+
+ExecutorService executor =
+        Executors.newFixedThreadPool(2);
+
+You submit 5 tasks.
+
+Main Thread
+
+Task 1 ─────┐
+Task 2 ─────┤
+Task 3 ─────┤
+Task 4 ─────┤
+Task 5 ─────┘
+             ↓
+       ExecutorService
+             ↓
+
+     ┌─────────────────┐
+     │ Thread Pool     │
+     │                 │
+     │ Worker-1        │
+     │ Worker-2        │
+     └─────────────────┘
+
+Execution:
+
+Worker-1 → Task 1
+Worker-2 → Task 2
+
+Task 1 finishes
+       ↓
+Worker-1 → Task 3
+
+Task 2 finishes
+       ↓
+Worker-2 → Task 4
+
+Then:
+
+Worker → Task 5
+
+Important:
+
+A worker thread is reused for multiple tasks.
+
+That is the main benefit of a thread pool.
+
+4. Complete Example
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ThreadPoolExample {
+
+    public static void main(String[] args) {
+
+        // Create a pool with 2 worker threads
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+
+        // Submit 5 tasks
+        for (int i = 1; i <= 5; i++) {
+
+            int taskNumber = i;
+
+            executor.execute(() -> {
+
+                System.out.println(
+                        "Task " + taskNumber
+                        + " started by "
+                        + Thread.currentThread().getName()
+                );
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+
+                    Thread.currentThread().interrupt();
+                }
+
+                System.out.println(
+                        "Task " + taskNumber
+                        + " finished by "
+                        + Thread.currentThread().getName()
+                );
+            });
+        }
+
+        executor.shutdown();
+    }
+}
+
+Possible execution:
+
+Task 1 started by pool-1-thread-1
+Task 2 started by pool-1-thread-2
+
+Task 1 finished
+Task 3 started by pool-1-thread-1
+
+Task 2 finished
+Task 4 started by pool-1-thread-2
+
+Task 3 finished
+Task 5 started
+
+Notice:
+
+pool-1-thread-1
+
+is reused.
+
+It executes:
+
+Task 1
+   ↓
+Task 3
+   ↓
+Task 5
+5. execute() vs submit()
+
+This is a common interview question.
+
+execute()
+executor.execute(() -> {
+    System.out.println("Hello");
+});
+
+Characteristics:
+
+Accepts → Runnable
+Returns → void
+
+Use when you don't need a result.
+
+submit()
+Future<Integer> future =
+        executor.submit(() -> {
+
+            return 100;
+        });
+
+Characteristics:
+
+Accepts → Runnable or Callable
+Returns → Future
+
+Use when you need:
+
+Result
+Task status
+Cancellation
+Exception handling
+Comparison
+Feature	execute()	submit()
+Accepts Runnable	Yes	Yes
+Accepts Callable	No	Yes
+Returns value	No	Future
+Can get result	No	Yes
+Can cancel	No	Yes
+Exception handling	Uncaught exception handling	Available through Future.get()
+6. Important Difference: Exception Behavior
+
+Look carefully.
+
+execute()
+executor.execute(() -> {
+
+    throw new RuntimeException("Something failed");
+
+});
+
+The exception can be handled by the worker thread's uncaught-exception mechanism and may appear in logs.
+
+With submit():
+
+Future<?> future =
+        executor.submit(() -> {
+
+            throw new RuntimeException("Something failed");
+
+        });
+
+The exception is captured by the Future.
+
+You need:
+
+try {
+
+    future.get();
+
+} catch (Exception e) {
+
+    System.out.println(e);
+}
+
+The original exception is typically available as the cause of ExecutionException.
+
+7. shutdown() vs shutdownNow()
+shutdown()
+executor.shutdown();
+
+Meaning:
+
+Stop accepting new tasks
+        ↓
+Already submitted tasks continue
+        ↓
+Queued tasks execute
+        ↓
+Executor terminates when finished
+
+Example:
+
+Task Queue
+
+Task 1 → Running
+Task 2 → Waiting
+Task 3 → Waiting
+
+shutdown()
+    ↓
+
+Task 1 finishes
+Task 2 executes
+Task 3 executes
+    ↓
+Executor terminates
+shutdownNow()
+executor.shutdownNow();
+
+Conceptually:
+
+Stop accepting new tasks
+        ↓
+Try to interrupt running tasks
+        ↓
+Return tasks that never started
+
+Important:
+
+shutdownNow() does not guarantee that a running task immediately stops.
+
+Your task must respond to interruption.
+
+Example:
+
+try {
+
+    while (!Thread.currentThread().isInterrupted()) {
+
+        doWork();
+    }
+
+} finally {
+
+    cleanup();
+}
+8. awaitTermination()
+
+After shutdown:
+
+executor.shutdown();
+
+You can wait:
+
+boolean finished =
+        executor.awaitTermination(
+                10,
+                TimeUnit.SECONDS
+        );
+
+Meaning:
+
+Wait maximum 10 seconds
+        ↓
+All tasks completed?
+        ↓
+YES → true
+NO  → false
+
+A common shutdown pattern:
+
+executor.shutdown();
+
+try {
+
+    if (!executor.awaitTermination(
+            30,
+            TimeUnit.SECONDS)) {
+
+        executor.shutdownNow();
+    }
+
+} catch (InterruptedException e) {
+
+    executor.shutdownNow();
+
+    Thread.currentThread().interrupt();
+}
+
+This pattern gives running tasks a chance to finish gracefully.
+
+9. Types of ExecutorService
+
+The Executors utility provides common configurations.
+
+Fixed Thread Pool
+Executors.newFixedThreadPool(5);
+Always maximum 5 active worker threads
+
+Good for:
+
+Controlled workloads
+Known concurrency limits
+Single Thread Executor
+Executors.newSingleThreadExecutor();
+Task 1
+   ↓
+Task 2
+   ↓
+Task 3
+
+Only one task executes at a time.
+
+Useful when tasks must be processed sequentially.
+
+Example:
+
+File write
+Audit logging
+Ordered processing
+Cached Thread Pool
+Executors.newCachedThreadPool();
+
+It can create many threads when demand increases.
+
+Conceptually:
+
+More tasks
+    ↓
+More threads may be created
+
+Be careful in production because under heavy load this can create too many threads.
+
+ScheduledExecutorService
+ScheduledExecutorService executor =
+        Executors.newScheduledThreadPool(2);
+
+Example:
+
+executor.schedule(
+        () -> System.out.println("Run"),
+        5,
+        TimeUnit.SECONDS
+);
+
+Also:
+
+scheduleAtFixedRate()
+
+scheduleWithFixedDelay()
+
+Useful for:
+
+Periodic cleanup
+Monitoring
+Scheduled background jobs
+10. What is ThreadPoolExecutor?
+
+This is where you get real control over the thread pool.
+
+Instead of:
+
+Executors.newFixedThreadPool(5);
+
+you can explicitly configure:
+
+ThreadPoolExecutor executor =
+        new ThreadPoolExecutor(
+                corePoolSize,
+                maximumPoolSize,
+                keepAliveTime,
+                unit,
+                workQueue,
+                threadFactory,
+                rejectedExecutionHandler
+        );
+
+Example:
+
+ThreadPoolExecutor executor =
+        new ThreadPoolExecutor(
+
+                2,                      // corePoolSize
+                4,                      // maximumPoolSize
+                60,                     // keepAliveTime
+                TimeUnit.SECONDS,
+
+                new ArrayBlockingQueue<>(3),
+
+                Executors.defaultThreadFactory(),
+
+                new ThreadPoolExecutor.AbortPolicy()
+        );
+
+Now understand this very deeply.
+
+11. ThreadPoolExecutor Internal Flow
+
+Suppose:
+
+corePoolSize = 2
+
+maximumPoolSize = 4
+
+queue capacity = 3
+
+Now submit tasks.
+
+Task 1
+
+Current threads:
+
+0
+
+Core size:
+
+2
+
+So create a worker:
+
+Task 1 → Thread 1
+Task 2
+
+Current threads:
+
+1
+
+Still below core size:
+
+2
+
+So:
+
+Task 2 → Thread 2
+
+Now:
+
+Active Threads = 2
+Task 3
+
+Core threads are busy.
+
+What happens?
+
+Task 3
+  ↓
+Put into Queue
+
+Queue:
+
+[Task 3]
+Task 4
+Queue:
+
+[Task 3, Task 4]
+Task 5
+Queue:
+
+[Task 3, Task 4, Task 5]
+
+Now queue is full.
+
+Task 6
+
+The queue is full.
+
+Can we create more threads?
+
+Current threads = 2
+Maximum threads = 4
+
+Yes.
+
+Task 6 → Thread 3
+Task 7
+Current threads = 3
+Maximum = 4
+
+Create:
+
+Task 7 → Thread 4
+
+Now:
+
+Active Threads = 4
+Task 8
+
+Now:
+
+Core threads = 2
+Maximum threads = 4
+Queue = FULL
+Threads = FULL
+
+Therefore:
+
+Task 8
+   ↓
+REJECTED
+
+The rejection behavior depends on the RejectedExecutionHandler.
+
+12. The Most Important ThreadPoolExecutor Formula
+
+Memorize this flow:
+
+NEW TASK
+   │
+   ▼
+Current Threads < corePoolSize?
+   │
+   ├── YES → Create new thread
+   │
+   └── NO
+         │
+         ▼
+      Queue has space?
+         │
+         ├── YES → Put task in queue
+         │
+         └── NO
+               │
+               ▼
+      Current Threads < maximumPoolSize?
+               │
+               ├── YES → Create new non-core thread
+               │
+               └── NO
+                     │
+                     ▼
+                  REJECT TASK
+
+This is one of the most important concepts for production and interviews.
+
+13. corePoolSize vs maximumPoolSize
+
+Example:
+
+new ThreadPoolExecutor(
+    2,
+    10,
+    60,
+    TimeUnit.SECONDS,
+    queue
+);
+
+Meaning:
+
+corePoolSize = 2
+
+Normally, the pool creates up to 2 core worker threads as tasks arrive.
+
+maximumPoolSize = 10
+
+If the queue cannot accept more tasks, additional threads can be created up to 10.
+
+A common misunderstanding is:
+
+"maximumPoolSize means the pool always creates 10 threads."
+
+No.
+
+It depends heavily on the queue type and capacity.
+
+14. WorkQueue — Very Important
+
+The queue stores tasks waiting for a worker.
+
+ArrayBlockingQueue
+new ArrayBlockingQueue<>(100);
+
+Bounded queue.
+
+Maximum 100 waiting tasks
+
+Good because it gives backpressure through rejection when overloaded.
+
+LinkedBlockingQueue
+
+Can be bounded:
+
+new LinkedBlockingQueue<>(100);
+
+Or effectively very large/unbounded depending on construction.
+
+Important production warning:
+
+new LinkedBlockingQueue<>()
+
+can grow very large, potentially consuming significant memory under sustained overload.
+
+SynchronousQueue
+new SynchronousQueue<>();
+
+No internal capacity for normal task storage.
+
+Conceptually:
+
+Task
+ ↓
+Must hand off directly
+ ↓
+Worker
+
+If no suitable worker can accept the task, the executor may create another thread up to maximumPoolSize, otherwise reject.
+
+This behavior is why maximumPoolSize is particularly important with SynchronousQueue.
+
+15. keepAliveTime
+
+Example:
+
+60,
+TimeUnit.SECONDS
+
+Suppose:
+
+corePoolSize = 2
+maximumPoolSize = 5
+
+During heavy traffic:
+
+5 threads created
+
+Later traffic decreases.
+
+Threads above the core size can become idle.
+
+After:
+
+60 seconds
+
+idle non-core threads may be removed.
+
+Back to:
+
+2 core threads
+
+Conceptually:
+
+High Traffic
+
+5 Threads
+    ↓
+
+Traffic decreases
+    ↓
+
+Idle for keepAliveTime
+    ↓
+
+Remove extra threads
+    ↓
+
+2 Threads remain
+16. RejectedExecutionHandler
+
+What happens when:
+
+Threads = maximumPoolSize
+Queue = Full
+
+The task cannot be accepted.
+
+Java provides rejection policies.
+
+AbortPolicy
+new ThreadPoolExecutor.AbortPolicy()
+
+Result:
+
+Reject task
+    ↓
+Throw RejectedExecutionException
+
+Useful when failure should be immediately visible.
+
+CallerRunsPolicy
+new ThreadPoolExecutor.CallerRunsPolicy()
+
+The calling thread executes the task.
+
+Request Thread
+     │
+     │ Submit task
+     ↓
+Pool overloaded
+     ↓
+Request Thread executes task itself
+
+This naturally slows down the producer and can provide a form of backpressure.
+
+DiscardPolicy
+new ThreadPoolExecutor.DiscardPolicy()
+Task
+ ↓
+Silently discarded
+
+Dangerous if tasks are important.
+
+DiscardOldestPolicy
+new ThreadPoolExecutor.DiscardOldestPolicy()
+
+Conceptually:
+
+Queue full
+
+Remove oldest queued task
+       ↓
+Try submitting new task
+
+Use only when dropping older work is acceptable.
+
+17. Custom Thread Names
+
+In production, don't accept thread names like:
+
+pool-1-thread-1
+
+Better:
+
+payment-worker-1
+payment-worker-2
+
+Example:
+
+AtomicInteger count = new AtomicInteger(1);
+
+ThreadFactory threadFactory = runnable -> {
+
+    Thread thread = new Thread(runnable);
+
+    thread.setName(
+            "payment-worker-" + count.getAndIncrement()
+    );
+
+    return thread;
+};
+
+Use it:
+
+ThreadPoolExecutor executor =
+        new ThreadPoolExecutor(
+                2,
+                4,
+                60,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(10),
+                threadFactory,
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+
+Now logs and thread dumps become easier to understand.
+
+18. Production Debugging Metrics
+
+ThreadPoolExecutor gives useful information.
+
+executor.getPoolSize();
+
+Current number of threads.
+
+executor.getActiveCount();
+
+Currently executing tasks.
+
+executor.getQueue().size();
+
+Tasks waiting.
+
+executor.getCompletedTaskCount();
+
+Completed tasks.
+
+executor.getTaskCount();
+
+Approximate total number of tasks scheduled.
+
+Example monitoring:
+
+System.out.println(
+        "Pool Size: "
+        + executor.getPoolSize()
+);
+
+System.out.println(
+        "Active Threads: "
+        + executor.getActiveCount()
+);
+
+System.out.println(
+        "Queue Size: "
+        + executor.getQueue().size()
+);
+
+System.out.println(
+        "Completed Tasks: "
+        + executor.getCompletedTaskCount()
+);
+
+Suppose:
+
+Pool Size       = 20
+Active Threads  = 20
+Queue Size      = 5000
+
+This indicates possible:
+
+Thread Pool Exhaustion
+
+Possible causes:
+
+Slow database
+Slow external API
+Tasks blocking
+Too few threads
+Excessive traffic
+
+But don't blindly increase the thread count. First find why the workers are busy.
+
+19. Production Example: Payment Processing
+
+Imagine your application processes payments.
+
+Incoming Requests
+       │
+       ▼
+Payment Thread Pool
+       │
+       ├── Worker 1 → Payment A
+       ├── Worker 2 → Payment B
+       └── Worker 3 → Payment C
+
+Configuration:
+
+ThreadPoolExecutor paymentExecutor =
+        new ThreadPoolExecutor(
+                5,                      // core threads
+                10,                     // maximum threads
+                60,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(100),
+                threadFactory,
+                new ThreadPoolExecutor.CallerRunsPolicy()
+        );
+
+Flow under load:
+
+First 5 tasks
+       ↓
+5 Core Threads
+
+More tasks
+       ↓
+Queue up to 100
+
+Queue Full
+       ↓
+Create additional threads
+       ↓
+Maximum 10
+
+Still overloaded
+       ↓
+CallerRunsPolicy
+       ↓
+Submitting thread slows down
+
+The exact numbers must be chosen based on:
+
+CPU cores
+Whether tasks are CPU-bound or I/O-bound
+Database connection limits
+External service limits
+Request latency
+Memory capacity
+20. One Important Production Warning
+
+Avoid using a single thread pool for completely different workloads.
+
+Bad design:
+
+One Thread Pool
+
+├── Database tasks
+├── Payment API calls
+├── File uploads
+├── Email sending
+└── CPU-heavy reports
+
+Suppose file uploads become slow.
+
+File tasks occupy all threads
+        ↓
+Payment tasks wait
+        ↓
+Database tasks wait
+        ↓
+Entire application becomes slow
+
+Better:
+
+Application
+
+├── paymentExecutor
+│
+├── databaseExecutor
+│
+├── fileExecutor
+│
+└── reportExecutor
+
+This is called workload isolation or bulkheading.
+
+21. Complete Practice Program
+
+Run this and understand every task.
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+public class ThreadPoolPractice {
+
+    public static void main(String[] args) {
+
+        ThreadPoolExecutor executor =
+                new ThreadPoolExecutor(
+
+                        2,      // corePoolSize
+                        4,      // maximumPoolSize
+                        10,     // keepAliveTime
+                        TimeUnit.SECONDS,
+
+                        new ArrayBlockingQueue<>(2),
+
+                        new ThreadPoolExecutor.AbortPolicy()
+                );
+
+        for (int i = 1; i <= 8; i++) {
+
+            int taskNumber = i;
+
+            try {
+
+                executor.submit(() -> {
+
+                    System.out.println(
+                            "Task " + taskNumber
+                            + " started by "
+                            + Thread.currentThread().getName()
+                    );
+
+                    try {
+
+                        Thread.sleep(5000);
+
+                    } catch (InterruptedException e) {
+
+                        Thread.currentThread().interrupt();
+                    }
+
+                    System.out.println(
+                            "Task " + taskNumber
+                            + " finished"
+                    );
+
+                });
+
+            } catch (Exception e) {
+
+                System.out.println(
+                        "Task " + taskNumber
+                        + " rejected: "
+                        + e.getClass().getSimpleName()
+                );
+            }
+        }
+
+        System.out.println(
+                "\nPool Size: "
+                + executor.getPoolSize()
+        );
+
+        System.out.println(
+                "Active Count: "
+                + executor.getActiveCount()
+        );
+
+        System.out.println(
+                "Queue Size: "
+                + executor.getQueue().size()
+        );
+
+        executor.shutdown();
+    }
+}
+Predict what happens
+
+Configuration:
+
+corePoolSize = 2
+maximumPoolSize = 4
+queue capacity = 2
+
+Tasks:
+
+Task 1 → Create Thread 1
+Task 2 → Create Thread 2
+
+Task 3 → Queue
+Task 4 → Queue
+
+Queue Full
+
+Task 5 → Create Thread 3
+Task 6 → Create Thread 4
+
+Pool = 4
+Queue = Full
+
+Task 7 → Rejected
+Task 8 → Rejected
+
+Visual:
+
+                     THREAD POOL
+                    ┌─────────────┐
+Task 1 ────────────►│ Worker 1    │
+Task 2 ────────────►│ Worker 2    │
+Task 5 ────────────►│ Worker 3    │
+Task 6 ────────────►│ Worker 4    │
+                    └─────────────┘
+
+                    TASK QUEUE
+                    ┌─────────────┐
+Task 3 ────────────►│ Waiting     │
+Task 4 ────────────►│ Waiting     │
+                    └─────────────┘
+
+Task 7 → REJECTED
+Task 8 → REJECTED
+Phase 3 Interview Questions
+
+You should now be able to answer:
+
+What is ExecutorService?
+Why is creating threads manually bad in production?
+What is a thread pool?
+What is the difference between execute() and submit()?
+What happens when submit() throws an exception?
+What is the difference between shutdown() and shutdownNow()?
+What does awaitTermination() do?
+What is ThreadPoolExecutor?
+Explain corePoolSize.
+Explain maximumPoolSize.
+What is workQueue?
+What is keepAliveTime?
+Explain RejectedExecutionHandler.
+What happens when the queue is full?
+Why can an unbounded queue be dangerous?
+What is CallerRunsPolicy?
+How do you detect thread pool exhaustion?
+Why should different workloads use separate thread pools?
+Phase 3 Core Concept
+
+Memorize this:
+
+NEW TASK
+   │
+   ▼
+Threads < corePoolSize?
+   │
+   ├── YES → CREATE CORE THREAD
+   │
+   └── NO
+        │
+        ▼
+     Queue has space?
+        │
+        ├── YES → ADD TO QUEUE
+        │
+        └── NO
+             │
+             ▼
+     Threads < maximumPoolSize?
+             │
+             ├── YES → CREATE EXTRA THREAD
+             │
+             └── NO
+                  │
+                  ▼
+              REJECT TASK
+
+Next Phase 4: Race Condition and synchronized — this is where shared memory, critical sections, monitor locks, and real concurrency problems begin.
+
+phase 3
+Phase 3: ExecutorService and ThreadPoolExecutor — Deep Practice
+
+You already saw Phase 3 overview. Now let's learn it step by step with debugging, starting from the most important concept.
+
+Phase 3 Roadmap
+Step 1 → Why Thread Pool?
+Step 2 → Executor vs ExecutorService
+Step 3 → execute() vs submit()
+Step 4 → shutdown() vs shutdownNow()
+Step 5 → ThreadPoolExecutor
+Step 6 → corePoolSize
+Step 7 → maximumPoolSize
+Step 8 → BlockingQueue
+Step 9 → keepAliveTime
+Step 10 → Rejection Policies
+Step 11 → Production problems
+Step 1: Why do we need a Thread Pool?
+
+Suppose your application receives 100 requests.
+
+Bad approach
+for (int i = 1; i <= 100; i++) {
+
+    new Thread(() -> {
+        processRequest();
+    }).start();
+}
+
+You may create:
+
+100 Requests
+     ↓
+100 Threads
+
+If requests become:
+
+10,000 Requests
+       ↓
+10,000 Threads
+
+Problems:
+
+Too many threads
+      ↓
+More stack memory
+      ↓
+More context switching
+      ↓
+CPU spends time switching threads
+      ↓
+Application becomes slow
+      ↓
+Possible OutOfMemoryError
+Solution: Thread Pool
+
+Instead of creating a new thread for every task:
+
+1000 Tasks
+     ↓
+┌──────────────┐
+│  Task Queue  │
+└──────────────┘
+     ↓
+┌────┬────┬────┐
+│ T1 │ T2 │ T3 │
+└────┴────┴────┘
+
+The same threads are reused.
+
+Example:
+
+Thread-1
+
+Task-1
+  ↓
+Task-4
+  ↓
+Task-7
+  ↓
+Task-10
+
+This is the main benefit:
+
+Create a limited number of threads and reuse them to execute many tasks.
+
+Step 2: First ExecutorService Program
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ExecutorExample {
+
+    public static void main(String[] args) {
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(2);
+
+        for (int i = 1; i <= 5; i++) {
+
+            int taskNumber = i;
+
+            executor.execute(() -> {
+
+                System.out.println(
+                    "Task " + taskNumber
+                    + " running on "
+                    + Thread.currentThread().getName()
+                );
+
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+
+        executor.shutdown();
+    }
+}
+Debug what happens
+
+Configuration:
+
+Thread Pool Size = 2
+Tasks = 5
+Task 1
+Task 1
+  ↓
+Create Worker Thread-1
+  ↓
+Task starts
+Task 2
+Task 2
+  ↓
+Create Worker Thread-2
+  ↓
+Task starts
+
+Now both workers are busy:
+
+Worker-1 → Task 1
+Worker-2 → Task 2
+Task 3
+
+No worker is available.
+
+So it waits:
+
+Queue:
+
+[Task 3]
+Task 4
+Queue:
+
+[Task 3, Task 4]
+Task 5
+Queue:
+
+[Task 3, Task 4, Task 5]
+
+When Task 1 finishes:
+
+Worker-1
+
+Task 1 Finished
+      ↓
+Take Task 3
+      ↓
+Execute Task 3
+
+The important point:
+
+Worker threads do not die after one task. They take another task from the queue.
+
+Step 3: execute() vs submit()
+execute()
+executor.execute(() -> {
+    System.out.println("Hello");
+});
+
+Return type:
+
+void
+
+Use it when you only want to execute a task.
+
+submit()
+Future<Integer> future =
+    executor.submit(() -> {
+        return 100;
+    });
+
+Return type:
+
+Future<Integer>
+
+You can later do:
+
+Integer result = future.get();
+Simple comparison
+Feature	execute()	submit()
+Accepts Runnable	Yes	Yes
+Accepts Callable	No	Yes
+Returns result	No	Yes
+Returns Future	No	Yes
+Can cancel task	No	Yes
+Exception accessible through Future	No	Yes
+Step 4: shutdown()
+
+After submitting tasks:
+
+executor.shutdown();
+
+It means:
+
+Do not accept new tasks
+          ↓
+Finish already submitted tasks
+          ↓
+Stop worker threads
+
+Example:
+
+executor.execute(task1);
+executor.execute(task2);
+
+executor.shutdown();
+
+executor.execute(task3); // Exception
+
+The last task will throw:
+
+RejectedExecutionException
+
+because the executor is shutting down.
+
+Step 5: shutdownNow()
+executor.shutdownNow();
+
+Conceptually:
+
+Stop accepting new tasks
+        ↓
+Interrupt running tasks
+        ↓
+Remove tasks that have not started
+
+Important:
+
+shutdownNow()
+
+does not guarantee immediate termination.
+
+The running task must cooperate with interruption.
+
+Example:
+
+while (!Thread.currentThread().isInterrupted()) {
+
+    doWork();
+}
+
+Or if using blocking methods:
+
+try {
+    Thread.sleep(10000);
+} catch (InterruptedException e) {
+
+    Thread.currentThread().interrupt();
+    return;
+}
+
+NOTES ::
+Why need ThreadPoolExecutor , We have ExecutorService alread ? 
+
+Here is the breakdown of why you use them and how they fit together.
+
+1. The Relationship (Interface vs. Implementation)
+ExecutorService is an interface. It defines what actions can be performed (e.g., submit(), execute(), shutdown()). It doesn't care how those threads are managed or created.
+
+ThreadPoolExecutor is a class. It implements the ExecutorService interface and provides the actual mechanics of 
+how a thread pool works (managing a pool of worker threads, a blocking queue for tasks, 
+thread recycling, and rejection policies).
+
+Think of ExecutorService as a Vehicle interface (defining that it can drive, brake, and accelerate) 
+and ThreadPoolExecutor as a specific type of vehicle, like a Tesla Model 3.
+
+2. Why don't we just use ExecutorService directly?
+You actually do use ExecutorService as your reference type in your code (which is a best practice for loose coupling), but you need a concrete class to instantiate it.
+
+
+Step 6: ThreadPoolExecutor — Real Control
+
+Executors.newFixedThreadPool() hides many configuration details.
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+public class ThreadPoolDebugExample {
+
+    public static void main(String[] args) {
+
+        ThreadPoolExecutor executor =
+                new ThreadPoolExecutor(
+                        2,      // corePoolSize
+                        4,      // maximumPoolSize
+                        60,     // keepAliveTime
+                        TimeUnit.SECONDS,
+                        new ArrayBlockingQueue<>(2)
+                );
+
+        for (int i = 1; i <= 8; i++) {
+
+            int taskNumber = i;
+
+            try {
+
+                System.out.println(
+                    "\nSubmitting Task " + taskNumber
+                );
+
+                executor.execute(() -> {
+
+                    System.out.println(
+                        "START Task " + taskNumber
+                        + " | Thread = "
+                        + Thread.currentThread().getName()
+                    );
+
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+
+                    System.out.println(
+                        "END Task " + taskNumber
+                    );
+                });
+
+                System.out.println(
+                    "Pool Size = " + executor.getPoolSize()
+                );
+
+                System.out.println(
+                    "Active Count = " + executor.getActiveCount()
+                );
+
+                System.out.println(
+                    "Queue Size = "
+                    + executor.getQueue().size()
+                );
+
+            } catch (Exception e) {
+
+                System.out.println(
+                    "Task " + taskNumber
+                    + " REJECTED"
+                );
+            }
+        }
+
+        executor.shutdown();
+    }
+}
+
+Step 7: Rejection Policies
+When:
+
+Maximum threads reached
+        +
+Queue full
+
+Java needs to decide what to do.
+
+
+1. AbortPolicy
+new ThreadPoolExecutor.AbortPolicy()
+
+Result:
+
+Reject task
+    ↓
+Throw RejectedExecutionException
+
+
+2. CallerRunsPolicy
+new ThreadPoolExecutor.CallerRunsPolicy()
+
+The thread submitting the task executes it.
+
+Example:
+
+Main Thread
+     │
+     │ submit Task 7
+     ▼
+Pool Full
+Queue Full
+     │
+     ▼
+Main Thread executes Task 7
+
+This naturally slows down the producer.
+
+This is a simple form of backpressure.
+
+
+3. DiscardPolicy
+new ThreadPoolExecutor.DiscardPolicy()
+Task → silently discarded
+
+Dangerous if the task is important.
+
+
+4. DiscardOldestPolicy
+new ThreadPoolExecutor.DiscardOldestPolicy()
+
+Conceptually:
+
+Queue Full
+
+[Task 3, Task 4]
+
+New Task 7
+     ↓
+Remove Task 3
+     ↓
+Try Task 7
+
+Only use this when losing older work is acceptable.
+
+
+| Policy                | What happens to new task? | Exception? | Existing queued task?      | Best use                         |
+| --------------------- | ------------------------- | ---------- | -------------------------- | -------------------------------- |
+| `AbortPolicy`         | Rejected                  | Yes        | No change                  | Critical tasks / detect overload |
+| `CallerRunsPolicy`    | Caller executes it        | No         | No change                  | Backpressure, don't lose task    |
+| `DiscardPolicy`       | Dropped                   | No         | No change                  | Non-critical tasks               |
+| `DiscardOldestPolicy` | Added if possible         | Usually no | Oldest queued task removed | Latest data more important       |
+
+
+What happens when a ThreadPoolExecutor is full?
+
+When the worker count has reached maximumPoolSize and the work queue cannot accept another task, 
+the executor invokes its RejectedExecutionHandler. Depending on the configured policy, it may 
+throw RejectedExecutionException, run the task in the caller thread, discard the new task, 
+or discard the oldest queued task and retry execution.
+
+
+Step 8: Queue Types
+ArrayBlockingQueue
+new ArrayBlockingQueue<>(100);
+
+Fixed capacity.
+
+Maximum waiting tasks = 100
+
+Good for controlling memory and overload.
+
+
+
+LinkedBlockingQueue
+new LinkedBlockingQueue<>(100);
+
+Can also be explicitly bounded.
+
+Be careful with:
+
+new LinkedBlockingQueue<>();
+
+An effectively unbounded queue can grow under overload and consume too much memory.
+
+Also, with an unbounded queue, tasks usually queue before the pool expands beyond corePoolSize, so maximumPoolSize may have little practical effect.
+
+
+SynchronousQueue
+new SynchronousQueue<>();
+
+No normal storage capacity.
+
+Task
+ ↓
+Direct handoff
+ ↓
+Worker
+
+If no worker can take it, the pool may create a new thread up to maximumPoolSize
+
+
+
+Step 9: keepAliveTime
+
+Suppose:
+
+corePoolSize = 2
+maximumPoolSize = 10
+keepAliveTime = 60 seconds
+
+Heavy traffic:
+
+10 threads created
+
+Traffic decreases:
+
+Only 2 threads needed
+
+The extra idle threads may wait:
+
+60 seconds
+
+Then:
+
+Extra threads removed
+
+Normally:
+
+10 threads
+   ↓
+Traffic decreases
+   ↓
+2 core threads remain
+
+
+Phase 4: Race Condition and synchronized
+
+1. What is Shared Data?
+
+Suppose two threads access the same object.
+
+class Counter {
+
+    int count = 0;
+}
+                 Counter Object
+                ┌─────────────┐
+Thread-1 ──────►│ count = 0   │◄────── Thread-2
+                └─────────────┘
+
+Both threads share:
+
+count
+
+Now both try:
+
+count++;
+
+This is where problems can happen.
+
+
+2. What is a Race Condition?
+A race condition happens when multiple threads access shared mutable data, and 
+the final result depends on the timing/order of execution.
+
+package com.heg.mult.phase2;
+
+class Counter{
+	private int count = 0;
+	
+	public void increment() {
+		count++;
+	}
+	public int getCount() {
+		return count;
+	}
+}
+
+public class RaceConditionExample {
+
+	public static void main(String[] args) throws InterruptedException {
+		Counter counter = new Counter();
+		
+		Thread t1 = new Thread(
+				() -> {
+					for(int i = 0 ; i< 100000; i++) {
+						counter.increment();
+					}
+				} );
+		
+		Thread t2 = new Thread(
+				() -> {
+					for(int i = 0 ; i< 100000; i++) {
+						counter.increment();
+					}
+				} );
+		
+		t1.start();
+		t2.start();
+		
+		t1.join();
+		t2.join();
+		
+		System.out.println(counter.getCount());
+	}
+}
+
+Expected:
+
+200000
+
+But sometimes you may get:
+
+198432
+
+or:
+
+199876
+
+The exact wrong result can change each run.
+
+That is a race condition.
+
+
+3. Why is count++ Dangerous?
+Many beginners think:
+
+count++;
+
+is one operation.
+
+It is not conceptually atomic.
+
+Think of it as:
+
+1. Read count
+2. Add 1
+3. Write count
+
+Suppose:
+
+count = 10
+
+Now two threads execute count++.
+
+Thread 1
+Read count = 10
+Thread 2
+Read count = 10
+
+Both calculate:
+
+10 + 1 = 11
+
+Then:
+
+Thread 1 writes 11
+Thread 2 writes 11
+
+Final result:
+
+11
+
+Expected:
+
+12
+
+One update was lost.
+
+This is called a:
+
+Lost Update
+Expected: 12
+Actual:   11
+
+
+
+4. What is a Critical Section?
+
+A critical section is code that accesses shared mutable data and must not be executed simultaneously by multiple threads.
+
+Example:
+
+public void increment() {
+
+    count++; // Critical section
+}
+
+We want:
+
+Thread-1
+    │
+    ▼
+[ Critical Section ]
+    │
+    ▼
+Exit
+
+        THEN
+
+Thread-2
+    │
+    ▼
+[ Critical Section ]
+
+Not:
+
+Thread-1 ──┐
+           ├── Same shared data simultaneously ❌
+Thread-2 ──┘
+
+To solve this, we use:
+
+synchronized
+
+
+5. synchronized Method
+
+The easiest solution:
+
+class Counter {
+
+    private int count = 0;
+
+    public synchronized void increment() {
+        count++;
+    }
+
+    public int getCount() {
+        return count;
+    }
+}
+
+Now only one thread can execute increment() at a time for the same Counter object.
+
+Thread-1
+   │
+   │ acquire lock
+   ▼
+increment()
+   │
+   │ count++
+   ▼
+release lock
+
+
+Thread-2
+   │
+   │ waits for lock
+   ▼
+increment()
+
+Now the expected result is consistently:
+
+200000
+
+
+6. What Does synchronized Actually Lock?
+
+This is very important.
+
+Consider:
+
+class Counter {
+
+    public synchronized void increment() {
+        count++;
+    }
+}
+
+For a non-static synchronized method:
+
+Meaning:
+
+Counter Object
+     │
+     └── Monitor Lock
+	 
+	 
+When Thread-1 enters:
+
+counter.increment();
+
+Thread-1 acquires the monitor lock of:
+
+counter
+
+If Thread-2 calls:
+
+counter.increment();
+
+it must wait.
+
+
+7. What is a Monitor Lock?
+Every Java object can be used as a synchronization monitor.
+
+Conceptually:
+
+Counter Object
+┌──────────────────────────┐
+│ count = 10               │
+│                          │
+│ Monitor / Intrinsic Lock │
+└──────────────────────────┘
+
+When you write:
+
+synchronized (counter) {
+
+    counter.increment();
+}
+
+you are saying:
+
+Before entering this block, acquire the monitor lock associated with counter.
+
+Only one thread can own that monitor at a time.
+
+
+8. synchronized Block
+
+Instead of locking the entire method:
+
+public synchronized void increment() {
+    count++;
+}
+
+you can lock only the critical part:
+
+private final Object lock = new Object();
+
+public void increment() {
+
+    synchronized (lock) {
+        count++;
+    }
+}
+
+
+
+class Counter{
+	private int count = 0;
+	
+	private final Object lock = new Object();
+	
+	public void increment() {
+		synchronized (lock) {
+			count++;
+		}
+		
+	}
+	public int getCount() {
+		return count;
+	}
+}
+
+
+9. Why Use a Separate Lock Object?
+
+Consider:
+
+synchronized (this) {
+    count++;
+}
+
+This locks the entire object.
+
+Sometimes another class may also synchronize on your object:
+
+synchronized (counter) {
+    // some code
+}
+
+Then unrelated code can interfere with your locking.
+
+Better:
+
+private final Object lock = new Object();
+
+Then:
+
+synchronized (lock) {
+    count++;
+}
+
+This gives you more control.
+
+
+10. Instance Lock vs Class Lock
+
+This is a common interview question.
+
+Instance synchronized method
+
+public synchronized void process() {
+}
+
+Lock:
+
+this
+
+Suppose:
+
+Counter c1 = new Counter();
+Counter c2 = new Counter();
+
+Then:
+
+c1 has its own monitor
+c2 has its own monitor
+
+Therefore:
+
+Thread-1 → c1.process()
+Thread-2 → c2.process()
+
+can run at the same time.
+
+Because:
+
+Different objects
+        ↓
+Different locks
+
+
+Static synchronized method
+
+
+
+public static synchronized void process() {
+}
+
+The lock is associated with the class object:
+
+Counter.class
+
+All instances share that same class-level lock.
+
+Thread-1 ───► Counter.class lock
+Thread-2 ───► Counter.class lock
+Thread-3 ───► Counter.class lock
+
+Only one thread can execute that static synchronized method at a time.
+
+
+11. Important Example: Different Locks
+class Example {
+
+    public synchronized void method1() {
+
+        System.out.println("method1");
+
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public synchronized void method2() {
+
+        System.out.println("method2");
+    }
+}
+
+Both methods use:
+
+this
+
+So:
+
+Thread-1 → method1()
+Thread-2 → method2()
+
+on the same object:
+
+Example example = new Example();
+
+Thread-2 must wait.
+
+Even though they are different methods.
+
+Because:
+
+Same Object
+     ↓
+Same Monitor Lock
+
+
+
+12. Important Example: Different Objects
+Example obj1 = new Example();
+Example obj2 = new Example();
+
+Now:
+
+Thread-1 → obj1.method1()
+Thread-2 → obj2.method1()
+
+Both can execute simultaneously.
+
+obj1 → Lock 1
+obj2 → Lock 2
+
+This is a very important distinction.
+
+
+13. Reentrancy
+
+Java's synchronized locks are reentrant.
+
+Example:
+
+class Example {
+
+    public synchronized void methodA() {
+
+        methodB();
+    }
+
+    public synchronized void methodB() {
+
+        System.out.println("Hello");
+    }
+}
+
+When the same thread enters:
+
+methodA()
+
+it already owns the object's monitor.
+
+It can enter:
+
+methodB()
+
+without blocking itself.
+
+Conceptually:
+
+Thread-1 acquires lock
+        ↓
+methodA()
+        ↓
+methodB()
+        ↓
+Same thread allowed again
+
+This is called:
+
+Reentrant Locking
+
+The lock is released only after the corresponding synchronized entries are exited.
+
+
+14. Does synchronized Make Everything Thread-Safe?
+
+package com.heg.mult.phase2;
+
+class BankAccount{
+	private int balance;
+
+	public BankAccount(int balance) {
+		this.balance=balance;
+	}
+	
+	public synchronized int getBalance() {
+		return balance;
+	}
+	
+	public synchronized void withdraw(int amount) {
+		balance -=amount;
+	}
+	
+}
+public class SynchronizedFlawDemo {
+
+	public static void main(String[] args) throws InterruptedException {
+		BankAccount account= new BankAccount(100);
+		
+		Runnable task = () ->{
+			
+			if(account.getBalance() >=80) {
+				try {
+					Thread.sleep(50);
+				}catch (Exception e) {
+					// TODO: handle exception
+				}
+				account.withdraw(80);
+				System.out.println(Thread.currentThread().getName() + " withdrew successfully.");
+				
+			}else {
+				System.out.println(Thread.currentThread().getName() + ": Insufficient funds!");
+			}
+			
+		};
+		
+		Thread t1 = new Thread(task,"Thread-1");
+		Thread t2 = new Thread(task,"Thread-2");
+		
+		t1.start();
+		t2.start();
+		t1.join();
+		t2.join();
+		
+		System.out.println("Final Balance :: " +account.getBalance());
+	}
+}
+
+OUTPUT:: 
+Thread-2 withdrew successfully.
+Thread-1 withdrew successfully.
+Final Balance :: -60
+
+
+The individual methods are synchronized.
+
+But the complete business operation:
+
+READ
+ ↓
+CALCULATE
+ ↓
+WRITE
+
+is split across multiple method calls.
+
+Another thread can interfere between them.
+
+Better:
+
+public synchronized boolean withdraw(int amount) {
+
+    if (balance >= amount) {
+        balance -= amount;
+        return true;
+    }
+
+    return false;
+}
+
+Now the entire operation is one critical section.
+
+Important lesson
+
+Synchronize the whole operation that must be atomic, not just random getters and setters.
+
+
+15. Production Example: Bank Account
+
+Bad code:
+
+class BankAccount {
+
+    private int balance = 1000;
+
+    public void withdraw(int amount) {
+
+        if (balance >= amount) {
+
+            balance = balance - amount;
+        }
+    }
+}
+
+Two threads:
+
+Balance = 1000
+
+Thread-1 withdraw 800
+Thread-2 withdraw 800
+
+Possible execution:
+
+Thread-1 reads 1000
+Thread-2 reads 1000
+
+Thread-1 checks 1000 >= 800 → true
+Thread-2 checks 1000 >= 800 → true
+
+Thread-1 writes 200
+Thread-2 writes 200
+
+Both withdrawals succeeded, but only one update may appear correctly in the final balance.
+
+The business result is incorrect.
+
+Solution:
+
+class BankAccount {
+
+    private int balance = 1000;
+
+    public synchronized boolean withdraw(int amount) {
+
+        if (balance >= amount) {
+
+            balance -= amount;
+
+            return true;
+        }
+
+        return false;
+    }
+}
+
+Now:
+
+Thread-1
+    ↓
+Acquire lock
+    ↓
+Check balance
+    ↓
+Withdraw
+    ↓
+Release lock
+
+Thread-2
+    ↓
+Acquire lock
+    ↓
+Check updated balance
+
+
+16. What Happens When a Thread Cannot Acquire a synchronized Lock?
+
+Example:
+
+synchronized (lock) {
+    Thread.sleep(5000);
+}
+
+Thread-1 acquires the lock.
+
+Thread-2 tries:
+
+synchronized (lock) {
+}
+
+Thread-2 enters the state:
+
+BLOCKED
+
+Important:
+
+BLOCKED
+
+means:
+
+Waiting to acquire a monitor lock.
+
+This is different from:
+
+WAITING
+
+and:
+
+TIMED_WAITING
+
+We will go deeper into these later.
+
+
+17. Does sleep() Release a synchronized Lock?
+
+No.
+
+Example:
+
+synchronized (lock) {
+
+    System.out.println("Lock acquired");
+
+    Thread.sleep(5000);
+}
+
+During sleep:
+
+Thread-1
+│
+├── Sleeping
+│
+└── STILL OWNS LOCK 🔒
+
+Other threads trying to acquire the same lock remain:
+
+BLOCKED
+
+The lock is released only when the synchronized block exits.
+
+
+## Phase 5: volatile and Memory Visibility
+
+Memory Visibility
+
+This phase is very important because:
+
+A thread may update a variable, but another thread may not immediately see the updated value.
+
+volatile guarantees visibility of changes to a variable across threads 
+and provides ordering guarantees around reads and writes of that variable.
+
+For learning, remember:
+
+volatile = Visibility
+
+But volatile does not provide general mutual exclusion.
+
+
+6. volatile Does NOT Make count++ Thread-Safe
+This is one of the most common interview questions.
+
+Consider:
+
+class Counter {
+
+    private volatile int count = 0;
+
+    public void increment() {
+        count++;
+    }
+}
+
+Many developers think:
+
+volatile
+    ↓
+Thread Safe
+
+❌ Wrong.
+
+Because:
+
+count++;
+
+is a read-modify-write operation.
+
+Conceptually:
+
+1. Read count
+2. Add 1
+3. Write count
+
+Suppose:
+
+count = 10
+
+Two threads:
+
+Thread-1 reads 10
+Thread-2 reads 10
+
+Thread-1 calculates 11
+Thread-2 calculates 11
+
+Thread-1 writes 11
+Thread-2 writes 11
+
+Final result:
+
+11
+
+Expected:
+
+12
+
+volatile improves visibility, but it does not make this compound operation atomic
+
+
+7. How to Fix count++?
+
+
+Option 1: synchronized
+class Counter {
+
+    private int count = 0;
+
+    public synchronized void increment() {
+        count++;
+    }
+}
+
+
+Option 2: AtomicInteger
+import java.util.concurrent.atomic.AtomicInteger;
+
+class Counter {
+
+    private AtomicInteger count = new AtomicInteger(0);
+
+    public void increment() {
+        count.incrementAndGet();
+    }
+}
+
+We will study Atomic classes in the next phase.
+
+
+18. Important Interview Questions
+
+1. What problem does volatile solve?
+
+It primarily solves memory visibility problems by ensuring writes to a 
+volatile variable are visible according to the Java Memory Model to threads that subsequently 
+read that variable.
+
+2. Does volatile make a variable thread-safe?
+
+Not in general. It does not provide mutual exclusion or 
+make compound operations atomic.
+
+3. Is count++ atomic with volatile?
+No.
+
+Use:
+
+AtomicInteger
+or
+synchronized
+4. Difference between volatile and synchronized?
+volatile
+→ Visibility and ordering for the variable
+
+synchronized
+→ Mutual exclusion + visibility
+5. Can volatile replace synchronized?
+
+Only for suitable simple visibility/publication use cases. It cannot replace 
+synchronization when multiple operations must execute atomically.
+
+
+                    MULTITHREADING
+                          │
+            ┌─────────────┴─────────────┐
+            │                           │
+            ▼                           ▼
+      Race Condition             Visibility Problem
+            │                           │
+            ▼                           ▼
+ Multiple threads modify       Thread does not reliably
+ shared mutable data           observe another thread's update
+            │                           │
+            ▼                           ▼
+ synchronized / Lock          volatile / synchronized
+ Atomic classes
+
+
+
+
+Phase 6: Atomic Classes and CAS
+
+1. What Are Atomic Classes?
+
+Java provides atomic classes in:
+
+java.util.concurrent.atomic
+
+Common classes:
+
+AtomicInteger
+AtomicLong
+AtomicBoolean
+AtomicReference
+
+Example:
+
+import java.util.concurrent.atomic.AtomicInteger;
+
+AtomicInteger count = new AtomicInteger(0);
+
+Instead of:
+
+count++;
+
+you can write:
+
+count.incrementAndGet();
+
+This operation is atomic.
+
+
+2. Problem Without AtomicInteger
+class Counter {
+
+    private int count = 0;
+
+    public void increment() {
+        count++;
+    }
+}
+
+Two threads:
+
+Thread-1             Thread-2
+
+Read 10
+                     Read 10
+
+Calculate 11
+                     Calculate 11
+
+Write 11
+                     Write 11
+
+Expected:
+
+12
+
+Actual:
+
+11
+
+This is a race condition.
+
+
+3. Solution Using AtomicInteger
+import java.util.concurrent.atomic.AtomicInteger;
+
+class Counter {
+
+    private AtomicInteger count = new AtomicInteger(0);
+
+    public void increment() {
+        count.incrementAndGet();
+    }
+
+    public int getCount() {
+        return count.get();
+    }
+}
+
+Now:
+
+Thread-1 ──┐
+           ├── Atomic increment
+Thread-2 ──┘
+
+No lost update.
+
+4. Important AtomicInteger Methods
+
+get()
+int value = count.get();
+
+Reads the current value.
+
+
+set()
+count.set(100);
+
+Sets:
+
+count = 100
+
+incrementAndGet()
+int result = count.incrementAndGet();
+
+First increment:
+
+10 → 11
+
+Then return:
+
+11
+
+getAndIncrement()
+int result = count.getAndIncrement();
+
+Return old value:
+
+10
+
+Then increment:
+
+10 → 11
+
+
+Difference
+incrementAndGet()
+    Increment → Return new value
+
+getAndIncrement()
+    Return old value → Increment
+
+Example:
+
+AtomicInteger count = new AtomicInteger(10);
+
+System.out.println(count.incrementAndGet());
+
+Output:
+
+11
+
+But:
+
+AtomicInteger count = new AtomicInteger(10);
+
+System.out.println(count.getAndIncrement());
+
+Output:
+
+10
+
+After both:
+
+count = 11
+
+
+5. addAndGet()
+AtomicInteger count = new AtomicInteger(10);
+
+int result = count.addAndGet(5);
+
+Result:
+
+count = 15
+result = 15
+
+
+6. getAndAdd()
+AtomicInteger count = new AtomicInteger(10);
+
+int result = count.getAndAdd(5);
+
+Result:
+
+result = 10
+count = 15
+
+Same concept:
+
+addAndGet()
+→ Update first
+
+getAndAdd()
+→ Get old value first
+
+
+
+7. The Most Important Concept: CAS
+Compare And Set
+
+Example:
+
+AtomicInteger count = new AtomicInteger(10);
+
+boolean result = count.compareAndSet(10, 20);
+
+Meaning:
+
+IF current value == 10
+    THEN change it to 20
+ELSE
+    do nothing
+
+Result:
+
+Before = 10
+
+Expected = 10
+New Value = 20
+
+Result = true
+
+Now:
+
+count = 20
+Failed CAS
+AtomicInteger count = new AtomicInteger(15);
+
+boolean result = count.compareAndSet(10, 20);
+
+Check:
+
+Current value = 15
+Expected value = 10
+
+15 != 10
+
+Therefore:
+
+No update
+
+result = false
+count = 1
+
+
+8. Why CAS Is Useful in Multithreading
+Suppose:
+
+Current count = 10
+
+Two threads want to update it.
+
+Thread 1
+Expected = 10
+New = 11
+Thread 2
+Expected = 10
+New = 11
+
+Only one thread can successfully change:
+
+10 → 11
+
+Suppose Thread-1 wins:
+
+count = 11
+
+Thread-2 tries:
+
+compareAndSet(10, 11)
+
+But:
+
+Current = 11
+Expected = 10
+
+❌ Failed
+
+Thread-2 can then retry using the latest value.
+
+This idea is the foundation of many lock-free algorithms.
+
+
+----------------------------------
+Phase 7: Lock and ReentrantLock
+
+1. Why Do We Need Lock?
+
+synchronized is simple:
+
+public synchronized void increment() {
+    count++;
+}
+
+But sometimes we need more control.
+
+For example:
+
+Can I try to get the lock without waiting forever?
+Can I wait only 5 seconds?
+Can I cancel while waiting for a lock?
+Can I use a fair lock?
+
+synchronized does not provide these features directly.
+
+So Java provides:
+
+java.util.concurrent.locks.Lock
+
+
+2. Basic Structure
+
+The most common implementation is:
+
+ReentrantLock
+The most common implementation is:
+
+ReentrantLock
+
+Example:
+
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+class Counter {
+
+    private final Lock lock = new ReentrantLock();
+
+    private int count = 0;
+
+    public void increment() {
+
+        lock.lock();
+
+        try {
+            count++;
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+
+The pattern is always:
+
+lock.lock();
+
+try {
+
+    // Critical section
+
+} finally {
+
+    lock.unlock();
+}
+
+
+
+
+3. Why finally Is Extremely Important?
+
+Consider:
+
+lock.lock();
+
+count++;
+
+lock.unlock();
+
+Suppose an exception occurs:
+
+lock.lock();
+
+throw new RuntimeException();
+
+lock.unlock(); // Never reached ❌
+
+The lock may remain held.
+
+Other threads can keep waiting.
+
+Potential result:
+
+Thread-1
+   │
+   ├── Acquires lock 🔒
+   │
+   └── Exception ❌
+        │
+        └── Lock not released
+
+Thread-2
+   │
+   └── Waiting forever
+
+Correct:
+
+lock.lock();
+
+try {
+
+    // Critical section
+
+} finally {
+
+    lock.unlock();
+
+}
+
+Even if an exception occurs:
+
+Exception
+    ↓
+finally executes
+    ↓
+unlock()
+
+
+4. What is ReentrantLock?
+
+ReentrantLock means:
+
+The same thread can acquire the same lock multiple times.
+
+Example:
+
+class Example {
+
+    private final Lock lock =
+            new ReentrantLock();
+
+    public void methodA() {
+
+        lock.lock();
+
+        try {
+
+            methodB();
+
+        } finally {
+
+            lock.unlock();
+        }
+    }
+
+    public void methodB() {
+
+        lock.lock();
+
+        try {
+
+            System.out.println("Hello");
+
+        } finally {
+
+            lock.unlock();
+        }
+    }
+}
+
+Flow:
+
+Thread-1
+
+methodA()
+   ↓
+Acquire Lock → Count = 1
+   ↓
+methodB()
+   ↓
+Acquire Same Lock → Count = 2
+   ↓
+unlock() → Count = 1
+   ↓
+unlock() → Count = 0
+   ↓
+Lock completely released
+
+The same thread does not block itself.
+
+This is:
+
+Reentrancy
+
+
+5. lock() — Wait Until Lock Is Available
+lock.lock();
+
+Behavior:
+
+Thread wants lock
+      │
+      ▼
+Lock available?
+   ┌──┴──┐
+ YES     NO
+  │       │
+  ▼       ▼
+Acquire   Wait
+
+Example:
+
+lock.lock();
+
+try {
+    process();
+} finally {
+    lock.unlock();
+}
+
+
+
+6. tryLock() — Don't Wait Forever
+
+Suppose you don't want a thread to wait indefinitely.
+
+if (lock.tryLock()) {
+
+    try {
+
+        System.out.println("Lock acquired");
+
+    } finally {
+
+        lock.unlock();
+    }
+
+} else {
+
+    System.out.println("Could not acquire lock");
+}
+
+Flow:
+
+Thread
+  ↓
+tryLock()
+  ↓
+Lock available?
+   │
+ ┌─┴─┐
+YES   NO
+ │     │
+ ▼     ▼
+Work   Continue / handle failure
+
+This is useful when waiting forever would be dangerous
+
+
+7. tryLock(timeout) — Wait for Limited Time
+
+Example:
+
+try {
+
+    if (lock.tryLock(5, TimeUnit.SECONDS)) {
+
+        try {
+
+            process();
+
+        } finally {
+
+            lock.unlock();
+        }
+
+    } else {
+
+        System.out.println(
+            "Could not acquire lock within 5 seconds"
+        );
+    }
+
+} catch (InterruptedException e) {
+
+    Thread.currentThread().interrupt();
+}
+
+Flow:
+
+Thread
+   ↓
+Wait maximum 5 seconds
+   ↓
+Lock acquired?
+   │
+ ┌─┴─────┐
+YES      NO
+ │        │
+ ▼        ▼
+Process   Timeout handling
+
+This is useful in production to prevent threads from waiting forever.
+
+8. lockInterruptibly()
+
+Normally:
+
+lock.lock();
+
+A thread waiting to acquire the lock cannot use interruption in the same way as lockInterruptibly().
+
+With:
+
+lock.lockInterruptibly();
+
+a waiting thread can respond to interruption.
+
+Example:
+
+try {
+
+    lock.lockInterruptibly();
+
+    try {
+
+        process();
+
+    } finally {
+
+        lock.unlock();
+    }
+
+} catch (InterruptedException e) {
+
+    Thread.currentThread().interrupt();
+
+    System.out.println("Lock wait interrupted");
+}
+
+Flow:
+
+Thread waiting for lock
+        │
+        ▼
+interrupt()
+        │
+        ▼
+InterruptedException
+        │
+        ▼
+Thread can stop waiting
+
+Useful for:
+
+Task cancellation
+Application shutdown
+Responsive concurrent operations
+
+9. ReentrantLock vs synchronized
+| Feature                        | `synchronized`        | `ReentrantLock`          |
+| ------------------------------ | --------------------- | ------------------------ |
+| Mutual exclusion               | Yes                   | Yes                      |
+| Reentrant                      | Yes                   | Yes                      |
+| Automatic release              | Yes, when block exits | No, must call `unlock()` |
+| `tryLock()`                    | No                    | Yes                      |
+| Timeout                        | No direct equivalent  | Yes                      |
+| Interruptible lock acquisition | No direct equivalent  | Yes                      |
+| Fairness option                | No direct equivalent  | Yes                      |
+| `Condition` objects            | `wait()/notify()`     | `Condition`              |
+| Simplicity                     | Easier                | More flexible            |
+
+
+10. Fair vs Non-Fair Lock
+
+Create a normal lock:
+
+Lock lock = new ReentrantLock();
+
+By default:
+
+Non-fair lock
+
+You can create a fair lock:
+
+Lock lock = new ReentrantLock(true);
+
+
+Non-Fair Lock
+
+Suppose:
+
+Thread-2 waiting
+Thread-3 waiting
+
+The lock becomes available.
+
+A newly arriving thread may acquire it before older waiting threads.
+
+Conceptually:
+
+Waiting:
+
+T2 → T3
+
+New:
+
+T4
+
+Lock released
+      ↓
+T4 may acquire first
+
+Advantages:
+
+Higher throughput
+Less scheduling overhead
+Fair Lock
+
+With:
+
+new ReentrantLock(true);
+
+the lock favors granting access in roughly waiting order.
+
+Conceptually:
+
+T2 waiting first
+      ↓
+T3 waiting second
+      ↓
+Lock released
+      ↓
+T2 gets priority
+
+But remember:
+
+Fairness
+   ≠
+Maximum performance
+
+Fair locks can reduce throughput.
+
+Production rule:
+Default non-fair
+      ↓
+Usually better throughput
+
+Fair lock
+      ↓
+Use only when fairness requirements matter
+
+
+Interview Questions
+1. Why use ReentrantLock instead of synchronized?
+
+ReentrantLock provides more explicit and flexible locking features such as tryLock(), timed lock acquisition, interruptible acquisition, configurable fairness, and Condition objects.
+
+2. Why should unlock() be inside finally?
+
+To guarantee that the lock is released even if the protected code throws an exception.
+
+3. What is reentrancy?
+
+The same thread can acquire the same lock multiple times without blocking itself. The lock is fully released only after matching unlock operations reduce the hold count to zero.
+
+4. What is tryLock()?
+
+It attempts to acquire a lock and returns immediately with true or false.
+
+5. What is a fair lock?
+
+A fair ReentrantLock favors longer-waiting threads when granting the lock, but fairness can reduce throughput.
+
+6. Does ReentrantLock automatically release the lock?
+
+No. You must explicitly call unlock(), normally inside a finally block.
+
+
+
+Phase 8: ReadWriteLock and ReentrantReadWriteLock
+
+In Phase 7, you learned:
+
+synchronized / ReentrantLock
+        ↓
+Only one thread enters critical section
+
+But what if your application has:
+
+1000 READ operations
+10 WRITE operations
+
+For example:
+
+Read product details
+Read user profile
+Read configuration
+Read cache
+
+Occasionally:
+Update product
+Update configuration
+Update cache
+
+If we use one normal lock for everything:
+
+Thread-1 → READ 🔒
+Thread-2 → WAIT ❌
+Thread-3 → WAIT ❌
+Thread-4 → WAIT ❌
+
+Even though all threads are only reading.
+
+This is where:
+
+ReadWriteLock
+
+becomes useful.
+
+1. Main Idea
+
+A ReadWriteLock has two different locks:
+
+Read Lock
+Write Lock
+
+Conceptually:
+
+                 ReadWriteLock
+                       │
+              ┌────────┴────────┐
+              │                 │
+              ▼                 ▼
+          Read Lock         Write Lock
+
+Rules:
+
+Multiple Readers
+        ↓
+Allowed simultaneously ✅
+
+One Writer
+        ↓
+Exclusive access ✅
+
+Writer + Reader
+        ↓
+Not allowed simultaneously ❌
+
+Writer + Writer
+        ↓
+Not allowed simultaneously ❌
+2. Why Do We Need It?
+
+Suppose we have a cache:
+
+Map<String, String> cache = new HashMap<>();
+
+Operations:
+
+get() → Read
+put() → Write
+
+Imagine:
+
+Thread-1 → get("user1")
+Thread-2 → get("user2")
+Thread-3 → get("user3")
+
+All are only reading.
+
+With a normal lock:
+
+T1 → Read
+T2 → Waiting
+T3 → Waiting
+
+This creates unnecessary waiting.
+
+With ReadWriteLock:
+
+T1 → Reading ─┐
+T2 → Reading ─┼── Simultaneously ✅
+T3 → Reading ─┘
+
+Better concurrency for a read-heavy workload.
+
+
+3. ReentrantReadWriteLock
+
+The common implementation is:
+
+java.util.concurrent.locks.ReentrantReadWriteLock
+
+Basic example:
+
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+class DataStore {
+
+    private final ReadWriteLock lock =
+            new ReentrantReadWriteLock();
+
+    private int data = 0;
+
+    public int read() {
+
+        lock.readLock().lock();
+
+        try {
+
+            return data;
+
+        } finally {
+
+            lock.readLock().unlock();
+        }
+    }
+
+    public void write(int value) {
+
+        lock.writeLock().lock();
+
+        try {
+
+            data = value;
+
+        } finally {
+
+            lock.writeLock().unlock();
+        }
+    }
+}
+
+The pattern is:
+
+Reading
+lock.readLock().lock();
+
+try {
+    // Read shared data
+} finally {
+    lock.readLock().unlock();
+}
+Writing
+lock.writeLock().lock();
+
+try {
+    // Modify shared data
+} finally {
+    lock.writeLock().unlock();
+}
+
+
+
+4. How Multiple Readers Work
+
+Suppose:
+
+Data = "Hello"
+
+Three threads call:
+
+read();
+
+Flow:
+
+Time →
+
+T1 ───────[ READING ]───────
+T2 ───────[ READING ]───────
+T3 ───────[ READING ]───────
+
+All can execute together.
+
+Why?
+
+Because:
+
+Read
++
+Read
+=
+No data modification
+
+Therefore concurrent reading is safe when the data access itself is correctly protected.
+
+5. What Happens When a Writer Comes?
+
+Suppose:
+
+T1 → Reading
+T2 → Reading
+T3 → Wants to Write
+
+The writer must wait:
+
+T1 ───────[ READ ]────────────
+T2 ───────[ READ ]────────────
+
+T3 ─────────────── WAIT ──────► WRITE
+
+The writer gets exclusive access only after existing readers release their read locks.
+
+During writing:
+
+T1 → Read ❌ Wait
+T2 → Read ❌ Wait
+T3 → Writing 🔒
+T4 → Write ❌ Wait
+6. Important Rule Table
+Current Lock	New Read Request	New Write Request
+No lock	Allowed	Allowed
+Read lock held	Allowed	Wait
+Write lock held	Wait	Wait
+Write lock requested/waiting	Depends on lock policy and timing	Depends on lock policy and timing
+
+Simple rule:
+
+READ + READ = Allowed
+
+READ + WRITE = Not allowed
+
+WRITE + READ = Not allowed
+
+WRITE + WRITE = Not allowed
+7. Real Example: Product Cache
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+class ProductCache {
+
+    private final Map<String, String> cache =
+            new HashMap<>();
+
+    private final ReadWriteLock lock =
+            new ReentrantReadWriteLock();
+
+    public String getProduct(String productId) {
+
+        lock.readLock().lock();
+
+        try {
+
+            return cache.get(productId);
+
+        } finally {
+
+            lock.readLock().unlock();
+        }
+    }
+
+    public void updateProduct(
+            String productId,
+            String product) {
+
+        lock.writeLock().lock();
+
+        try {
+
+            cache.put(productId, product);
+
+        } finally {
+
+            lock.writeLock().unlock();
+        }
+    }
+}
+
+Flow:
+
+Many requests:
+
+GET /products/1
+GET /products/2
+GET /products/3
+
+        ↓
+
+All can read concurrently
+
+
+PUT /products/1
+
+        ↓
+
+Requires exclusive write access
+8. Complete Multithreading Example
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+public class ReadWriteLockDemo {
+
+    private static final ReadWriteLock lock =
+            new ReentrantReadWriteLock();
+
+    private static int value = 0;
+
+    public static void main(String[] args)
+            throws InterruptedException {
+
+        Thread reader1 = new Thread(() -> read(),
+                "Reader-1");
+
+        Thread reader2 = new Thread(() -> read(),
+                "Reader-2");
+
+        Thread writer = new Thread(() -> write(100),
+                "Writer");
+
+        reader1.start();
+        reader2.start();
+
+        Thread.sleep(100);
+
+        writer.start();
+
+        reader1.join();
+        reader2.join();
+        writer.join();
+    }
+
+    private static void read() {
+
+        lock.readLock().lock();
+
+        try {
+
+            System.out.println(
+                    Thread.currentThread().getName()
+                            + " reading value: " + value
+            );
+
+            Thread.sleep(3000);
+
+        } catch (InterruptedException e) {
+
+            Thread.currentThread().interrupt();
+
+        } finally {
+
+            lock.readLock().unlock();
+        }
+    }
+
+    private static void write(int newValue) {
+
+        lock.writeLock().lock();
+
+        try {
+
+            System.out.println(
+                    Thread.currentThread().getName()
+                            + " writing value: " + newValue
+            );
+
+            value = newValue;
+
+        } finally {
+
+            lock.writeLock().unlock();
+        }
+    }
+}
+
+Expected behavior:
+
+Reader-1 reading value: 0
+Reader-2 reading value: 0
+
+... around 3 seconds later ...
+
+Writer writing value: 100
+
+Both readers can hold the read lock together.
+
+The writer waits until both readers finish.
+
+9. ReentrantReadWriteLock Is Reentrant
+
+Just like ReentrantLock, the locks are reentrant.
+
+Example:
+
+class Example {
+
+    private final ReentrantReadWriteLock lock =
+            new ReentrantReadWriteLock();
+
+    public void methodA() {
+
+        lock.writeLock().lock();
+
+        try {
+
+            methodB();
+
+        } finally {
+
+            lock.writeLock().unlock();
+        }
+    }
+
+    public void methodB() {
+
+        lock.writeLock().lock();
+
+        try {
+
+            System.out.println("Hello");
+
+        } finally {
+
+            lock.writeLock().unlock();
+        }
+    }
+}
+
+Same thread:
+
+Acquire Write Lock
+        ↓
+Call another method
+        ↓
+Acquire Write Lock again
+        ↓
+Allowed
+
+The lock maintains a hold count.
+
+10. Lock Downgrading
+
+This is an important advanced concept.
+
+Sometimes:
+
+1. Acquire write lock
+2. Update data
+3. Continue reading updated data
+
+Instead of completely releasing the write lock and then acquiring the read lock, you can downgrade.
+
+Example:
+
+ReentrantReadWriteLock lock =
+        new ReentrantReadWriteLock();
+
+lock.writeLock().lock();
+
+try {
+
+    updateData();
+
+    lock.readLock().lock();
+
+} finally {
+
+    lock.writeLock().unlock();
+}
+
+try {
+
+    readData();
+
+} finally {
+
+    lock.readLock().unlock();
+}
+
+Flow:
+
+WRITE LOCK
+     ↓
+Update data
+     ↓
+Acquire READ LOCK
+     ↓
+Release WRITE LOCK
+     ↓
+Continue with READ LOCK
+
+This is called:
+
+Lock Downgrading
+
+It helps maintain controlled access to the state while transitioning from writing to reading.
+
+11. Lock Upgrading Problem
+
+Now the opposite situation.
+
+Suppose:
+
+Thread acquires READ lock
+        ↓
+Reads data
+        ↓
+Decides:
+"I need to modify it"
+        ↓
+Tries to acquire WRITE lock
+
+Example:
+
+lock.readLock().lock();
+
+try {
+
+    if (data == null) {
+
+        lock.writeLock().lock(); // ⚠️ Dangerous
+
+        try {
+            data = createData();
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+} finally {
+
+    lock.readLock().unlock();
+}
+
+Why is this dangerous?
+
+Imagine:
+
+T1 holds READ lock
+T2 holds READ lock
+
+T1 wants WRITE lock
+        ↓
+T1 waits for all readers
+
+But T1 itself is still a reader!
+
+It may wait indefinitely because it still holds its own read lock.
+
+This is a lock upgrade problem.
+
+Important rule
+Do not try to upgrade directly:
+
+READ LOCK → WRITE LOCK
+
+Instead:
+
+Release READ LOCK
+        ↓
+Acquire WRITE LOCK
+        ↓
+Recheck the condition
+
+Example:
+
+lock.readLock().lock();
+
+boolean needsUpdate;
+
+try {
+
+    needsUpdate = (data == null);
+
+} finally {
+
+    lock.readLock().unlock();
+}
+
+if (needsUpdate) {
+
+    lock.writeLock().lock();
+
+    try {
+
+        // Recheck!
+        if (data == null) {
+            data = createData();
+        }
+
+    } finally {
+
+        lock.writeLock().unlock();
+    }
+}
+
+Why recheck?
+
+Because another thread may update the data between:
+
+Release READ LOCK
+        ↓
+Acquire WRITE LOCK
+12. Fair vs Non-Fair ReentrantReadWriteLock
+
+Default:
+
+new ReentrantReadWriteLock();
+
+This creates a non-fair lock.
+
+Fair version:
+
+new ReentrantReadWriteLock(true);
+
+Fair mode tries to honor waiting order more predictably.
+
+Reader waiting first
+Writer waiting second
+
+Fair lock
+    ↓
+Earlier waiting thread is favored
+
+But:
+
+Fairness
+    ↓
+Potentially less throughput
+
+Usually:
+
+Default non-fair
+
+is used unless your application has a specific fairness requirement.
+
+13. Production Problem: Writer Starvation
+
+Suppose your system is extremely read-heavy:
+
+Reader-1 → Read
+Reader-2 → Read
+Reader-3 → Read
+Reader-4 → Read
+Reader-5 → Read
+...
+
+A writer arrives:
+
+Writer → Waiting
+
+Depending on contention and scheduling behavior, a writer can experience long delays.
+
+This can become:
+
+Writer Starvation
+
+The important production lesson is:
+
+Don't assume ReadWriteLock automatically improves performance. Measure your workload.
+
+If writes are frequent or critical sections are tiny, a normal lock or another concurrency design may perform better.
+
+14. ReadWriteLock vs synchronized
+Feature	synchronized	ReentrantLock	ReadWriteLock
+Multiple readers simultaneously	No	No	Yes
+One writer	Yes	Yes	Yes
+Exclusive write access	Yes	Yes	Yes
+tryLock() support	No direct equivalent	Yes	Yes
+Best for	Simple synchronization	Advanced exclusive locking	Read-heavy workloads
+15. When Should You Use ReadWriteLock?
+
+Good for:
+
+Configuration cache
+Reference data
+In-memory product catalog
+Application settings
+Read-heavy shared state
+
+Example ratio:
+
+100,000 Reads
+      ↓
+100 Writes
+
+Potentially useful.
+
+Not automatically good for:
+
+50% Reads
+50% Writes
+
+or very small, extremely fast critical sections.
+
+16. Production Cache Example
+
+Let's create a simple configuration cache.
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+class ConfigCache {
+
+    private final Map<String, String> config =
+            new HashMap<>();
+
+    private final ReadWriteLock lock =
+            new ReentrantReadWriteLock();
+
+    public String get(String key) {
+
+        lock.readLock().lock();
+
+        try {
+
+            return config.get(key);
+
+        } finally {
+
+            lock.readLock().unlock();
+        }
+    }
+
+    public void put(String key, String value) {
+
+        lock.writeLock().lock();
+
+        try {
+
+            config.put(key, value);
+
+        } finally {
+
+            lock.writeLock().unlock();
+        }
+    }
+
+    public void reload(
+            Map<String, String> newConfig) {
+
+        lock.writeLock().lock();
+
+        try {
+
+            config.clear();
+
+            config.putAll(newConfig);
+
+        } finally {
+
+            lock.writeLock().unlock();
+        }
+    }
+}
+
+Why use the write lock for reload()?
+
+Because:
+
+clear()
+   +
+putAll()
+
+should behave as one protected update.
+
+We don't want another thread to observe a partially updated map during this operation.
+
+17. Important Production Mistake
+
+Do not hold a lock while doing slow operations.
+
+Bad:
+
+lock.writeLock().lock();
+
+try {
+
+    callDatabase();
+
+    callExternalAPI();
+
+    Thread.sleep(5000);
+
+    cache.put("key", "value");
+
+} finally {
+
+    lock.writeLock().unlock();
+}
+
+Problem:
+
+WRITE LOCK held
+        ↓
+All readers blocked
+        ↓
+All writers blocked
+        ↓
+Application slowdown
+
+Better:
+
+// Slow operation outside lock
+String data = callDatabase();
+
+lock.writeLock().lock();
+
+try {
+
+    cache.put("key", data);
+
+} finally {
+
+    lock.writeLock().unlock();
+}
+
+Keep this small:
+
+Acquire Lock
+     ↓
+Update Shared State
+     ↓
+Release Lock
+18. Important Alternative: ConcurrentHashMap
+
+Sometimes you don't need to manually manage a ReadWriteLock.
+
+For a concurrent map, consider:
+
+ConcurrentHashMap
+
+Example:
+
+ConcurrentHashMap<String, String> cache =
+        new ConcurrentHashMap<>();
+
+cache.put("user1", "Pradeep");
+
+String value = cache.get("user1");
+
+For many use cases:
+
+ConcurrentHashMap
+
+is better than manually doing:
+
+HashMap
++
+ReadWriteLock
+
+However:
+
+ConcurrentHashMap
+
+does not automatically make a multi-step business operation atomic.
+
+For example:
+
+if (!cache.containsKey(key)) {
+    cache.put(key, value);
+}
+
+may not represent the atomic behavior you want.
+
+Instead, use operations designed for atomic map updates, such as:
+
+cache.putIfAbsent(key, value);
+
+or:
+
+cache.computeIfAbsent(
+    key,
+    k -> createValue(k)
+);
+19. Practice Exercise
+
+Create:
+
+class UserCache {
+
+    private final Map<Integer, String> users =
+            new HashMap<>();
+
+    private final ReadWriteLock lock =
+            new ReentrantReadWriteLock();
+
+    public String getUser(int id) {
+        // Implement using readLock
+        return null;
+    }
+
+    public void addUser(
+            int id,
+            String name) {
+
+        // Implement using writeLock
+    }
+}
+
+Create:
+
+5 Reader Threads
+1 Writer Thread
+
+Test:
+
+Reader-1 → getUser()
+Reader-2 → getUser()
+Reader-3 → getUser()
+Reader-4 → getUser()
+Reader-5 → getUser()
+
+Writer → addUser()
+
+Observe:
+
+Multiple readers can execute together.
+
+Writer requires exclusive access.
+20. Phase 8 Mental Model
+                    Shared Data
+                        │
+                        ▼
+                  What operation?
+                   /            \
+                  /              \
+               READ              WRITE
+                │                  │
+                ▼                  ▼
+           Read Lock          Write Lock
+                │                  │
+        Multiple allowed       Only one allowed
+                │                  │
+                └──────┬───────────┘
+                       │
+                       ▼
+              ReentrantReadWriteLock
+Most Important Interview Questions
+
+1. What is ReadWriteLock?
+
+A synchronization mechanism that separates read access from write access. 
+Multiple threads can hold the read lock concurrently, while write access requires exclusive access.
+
+2. Can multiple threads acquire the read lock?
+Yes.
+
+3. Can a writer and reader execute simultaneously?
+No.
+
+4. Why use ReadWriteLock?
+
+It can improve concurrency for read-heavy shared data because multiple readers do not 
+unnecessarily block each other.
+
+5. What is lock upgrading?
+Read Lock
+   ↓
+Trying to acquire Write Lock
+
+This can cause waiting problems and should generally be avoided with ReentrantReadWriteLock.
+
+6. What is lock downgrading?
+Write Lock
+   ↓
+Acquire Read Lock
+   ↓
+Release Write Lock
+
+This is supported when done in the correct order.
+
+7. When should you not use ReadWriteLock?
+
+Don't use it automatically. If writes are frequent, contention patterns don't benefit, 
+or the critical section is tiny, its additional complexity may not improve performance.
+
+
+Phase 9: CountDownLatch, CyclicBarrier, and Semaphore
+
+These three classes are very important because they solve different coordination problems.
+
+They are in:
+
+java.util.concurrent
+
+First, remember this:
+
+CountDownLatch
+    ↓
+Wait until other tasks finish
+
+CyclicBarrier
+    ↓
+Multiple threads wait for each other
+
+Semaphore
+    ↓
+Limit how many threads can access a resource
+
+
+1. Quick Difference
+
+| Class            | Main Purpose                | Reusable? |
+| ---------------- | --------------------------- | --------- |
+| `CountDownLatch` | Wait for tasks to complete  | ❌ No      |
+| `CyclicBarrier`  | Threads wait for each other | ✅ Yes     |
+| `Semaphore`      | Limit concurrent access     | ✅ Yes     |
+
+
+Part 1: CountDownLatch
+
+package com.heg.mult.phase7;
+
+import java.util.concurrent.CountDownLatch;
+
+public class CountDownLatchDemo {
+	public static void main(String[] args) throws InterruptedException {
+		
+		CountDownLatch latch = new CountDownLatch(3);
+		
+		Thread t1 = new Thread(
+				()->{
+					System.out.println("Task 1 completed");
+					latch.countDown();
+				}
+				);
+		
+		Thread t2 = new Thread(
+				()-> {
+					System.out.println("Task 2 completed");
+					latch.countDown();
+				}
+				);
+		
+		Thread t3 = new Thread(
+				()->{
+					System.out.println("Task 3 completed ");
+					latch.countDown();
+				}
+				);
+		
+		
+		t1.start();
+		t2.start();
+		t3.start();
+		
+		latch.await();
+		System.out.println("All task completed ");
+	}
+
+}
+
+Part 2: CyclicBarrier
+9. What is CyclicBarrier?
 
 
 
