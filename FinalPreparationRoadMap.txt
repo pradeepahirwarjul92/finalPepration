@@ -2172,6 +2172,251 @@ Memory visibility
 --------------------------Phase 2 — Java 8 → 17 → 21---------------
 For interviews, don't stop at Java 8.
 
+1. Lambda Expressions
+What is Lambda?
+
+A lambda expression is a concise way to represent an implementation of a functional interface.
+
+Before Java 8:
+
+Runnable runnable = new Runnable() {
+    @Override
+    public void run() {
+        System.out.println("Hello");
+    }
+};
+
+
+Java 8:
+
+Runnable runnable = () -> System.out.println("Hello");
+
+General syntax:
+
+(parameters) -> expression
+
+or:
+
+(parameters) -> {
+    // statements
+}
+
+Why were lambdas introduced?
+
+The main purpose was to enable functional programming and make behavior easier to pass around as data.
+
+For example:
+
+List<String> names = List.of("John", "Alex", "Bob");
+
+names.forEach(name -> System.out.println(name));
+
+Instead of writing an external loop.
+
+Important point for senior interviews
+
+Lambda doesn't create a new functional interface.
+
+It provides an implementation of an existing functional interface.
+
+2. Functional Interfaces
+
+A functional interface contains exactly one abstract method.
+
+Example:
+
+@FunctionalInterface
+interface Calculator {
+    int calculate(int a, int b);
+}
+
+Usage:
+
+Calculator add = (a, b) -> a + b;
+
+System.out.println(add.calculate(10, 20));
+Common built-in functional interfaces
+
+| Interface           | Method              | Purpose        |
+| ------------------- | ------------------- | -------------- |
+| `Predicate<T>`      | `boolean test(T t)` | condition      |
+| `Function<T,R>`     | `R apply(T t)`      | transformation |
+| `Consumer<T>`       | `void accept(T t)`  | consume        |
+| `Supplier<T>`       | `T get()`           | supply         |
+| `UnaryOperator<T>`  | `T apply(T t)`      | T → T          |
+| `BinaryOperator<T>` | `T apply(T,T)`      | T,T → T        |
+
+Example: 
+
+Predicate<Integer> even = n -> n % 2 == 0;
+
+Function<String, Integer> length = String::length;
+
+Consumer<String> printer = System.out::println;
+
+Supplier<Double> random = Math::random;
+
+
+Interview question
+
+Can a functional interface have default methods?
+
+Yes.
+
+It can have:
+
+exactly one abstract method
+any number of default methods
+any number of static methods
+
+3. Stream API
+
+This is extremely important for an 8-year Java interview.
+
+Streams allow you to process collections in a declarative style.
+
+Example:
+
+List<Integer> numbers = List.of(1, 2, 3, 4, 5, 6);
+
+List<Integer> result = numbers.stream()
+        .filter(n -> n % 2 == 0)
+        .map(n -> n * 2)
+        .collect(Collectors.toList());
+
+Result:
+
+[4, 8, 12]
+
+Important concepts
+
+Know:
+
+intermediate operations
+terminal operations
+lazy evaluation
+stateless/stateful operations
+sequential streams
+parallel streams
+Intermediate operations
+
+Examples:
+
+filter()
+map()
+flatMap()
+sorted()
+distinct()
+limit()
+skip()
+peek()
+
+They return another Stream.
+
+Terminal operations
+
+Examples:
+
+collect()
+forEach()
+reduce()
+count()
+min()
+max()
+findFirst()
+findAny()
+anyMatch()
+allMatch()
+noneMatch()
+Interview question
+
+Are streams lazy?
+
+Yes.
+
+Intermediate operations aren't executed until a terminal operation is invoked.
+
+Example:
+
+numbers.stream()
+       .filter(n -> {
+           System.out.println(n);
+           return n > 2;
+       });
+
+Nothing happens because there's no terminal operation.
+
+Add:
+
+.count();
+
+and execution starts.
+
+4. map() vs flatMap()
+
+This is a common experienced-level interview question.
+
+map
+
+One input produces one output.
+
+List<String> names = List.of("John", "Alex");
+
+List<Integer> lengths = names.stream()
+        .map(String::length)
+        .toList();
+
+Conceptually:
+
+String → Integer
+flatMap
+
+Used when each input produces multiple outputs and you want one flattened stream.
+
+List<List<String>> data = List.of(
+        List.of("A", "B"),
+        List.of("C", "D")
+);
+
+List<String> result = data.stream()
+        .flatMap(List::stream)
+        .toList();
+
+Result:
+
+[A, B, C, D]
+
+Think:
+
+map     : A → B
+flatMap : A → Stream<B>
+
+
+5. reduce()
+
+Used to combine multiple values into one.
+
+int sum = List.of(1, 2, 3, 4)
+        .stream()
+        .reduce(0, Integer::sum);
+
+Result:
+
+10
+
+Another example:
+
+int max = numbers.stream()
+        .reduce(Integer.MIN_VALUE, Integer::max);
+		
+		
+		
+
+
+
+
+
+
 Master:
 
 Java 8
