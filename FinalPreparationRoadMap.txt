@@ -202,8 +202,74 @@ You find:
 
 
 jstack — Thread Dump
+------------------------
 
 What is it?
+
+A thread dump is a snapshot of all the threads running in a process 
+(most commonly a Java Virtual Machine, or JVM) at a specific point in time. 
+It shows what every thread is doing, making it one of the most useful tools for 
+diagnosing performance and concurrency issues.
+
+What information does a thread dump contain?
+
+A thread dump typically includes:
+
+Thread name (e.g., http-nio-8080-exec-1)
+Thread ID
+Thread state, such as:
+RUNNABLE – actively running or ready to run
+BLOCKED – waiting for a lock held by another thread
+WAITING – waiting indefinitely for another thread
+TIMED_WAITING – waiting for a specified period
+TERMINATED – thread has finished execution
+Stack trace – the sequence of method calls currently being executed
+Lock information – which locks the thread owns or is waiting for
+Example
+"Worker-1" #23 prio=5 os_prio=0 tid=0x00007f8b3400
+   java.lang.Thread.State: BLOCKED (on object monitor)
+    at com.example.Account.withdraw(Account.java:45)
+    - waiting to lock <0x000000076b0d1234>
+    at com.example.Bank.transfer(Bank.java:78)
+
+This indicates:
+
+Thread name: Worker-1
+State: BLOCKED
+It's waiting to acquire a lock before it can continue.
+The code causing the block is in Account.withdraw().
+Why are thread dumps useful?
+
+Developers and system administrators use thread dumps to diagnose issues like:
+
+Application hangs – Determine why the application has stopped responding.
+Deadlocks – Find threads waiting on each other indefinitely.
+High CPU usage – Identify threads consuming excessive CPU.
+Performance bottlenecks – Locate slow or blocked operations.
+Thread leaks – Detect an unusually large number of active threads.
+How to generate a thread dump (Java)
+
+Some common methods are:
+
+jstack <PID> – Generates a thread dump for a running JVM.
+jcmd <PID> Thread.print – Prints thread information.
+Press Ctrl + \ (on Unix/Linux) if the JVM is attached to a terminal.
+Send kill -3 <PID> (Linux/macOS), which writes the thread dump to the application's standard output or log.
+Use monitoring tools like VisualVM, JConsole, or Java Mission Control.
+When should you take a thread dump?
+
+Take one when:
+
+The application is frozen or unresponsive.
+CPU usage is unusually high.
+Requests are taking much longer than expected.
+You suspect a deadlock or thread contention.
+Threads appear to be leaking.
+
+For intermittent issues, it's common to capture multiple thread dumps (for example, 3 dumps 10–15 seconds apart). 
+Comparing them helps determine whether threads are making progress or are stuck in the same state.
+
+
 
 jstack generates a thread dump of a running JVM.
 
@@ -278,6 +344,16 @@ that memory captured at a specific point in time for troubleshooting
 
 
 Heap dump
+
+---------Way to create Heap dump ---------
+1. jcmd - preferred on modern Java
+
+jcmd 12345 GC.heap_dump heap.hprof
+
+
+2. jmap - Traditional Approch 
+jmap -dump:format=b,file=heap.hprof 12345
+
 
 One of the most important uses is generating a heap dump:
 
@@ -908,8 +984,8 @@ collision
 linked list / tree
 
 
-4. Multithreading
-
+## 4. Multithreading
+--------------------------------------------
 1. Process vs Thread
 
 Process
@@ -7539,6 +7615,20 @@ or the critical section is tiny, its additional complexity may not improve perfo
 
 Phase 9: CountDownLatch, CyclicBarrier, and Semaphore
 
+CountDownLatch
+    ↓
+Wait until other tasks finish
+
+CyclicBarrier
+    ↓
+Multiple threads wait for each other
+
+Semaphore
+    ↓
+Limit how many threads can access a resource
+
+
+
 These three classes are very important because they solve different coordination problems.
 
 They are in:
@@ -7607,6 +7697,7 @@ public class CountDownLatchDemo {
 		t3.start();
 		
 		latch.await();
+		
 		System.out.println("All task completed ");
 	}
 
@@ -7614,6 +7705,163 @@ public class CountDownLatchDemo {
 
 Part 2: CyclicBarrier
 9. What is CyclicBarrier?
+
+package com.heg.mult.phase7;
+
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
+
+public class CyclicBarierDemo {
+
+	public static void main(String[] args) {
+		CyclicBarrier barrier = new CyclicBarrier(3);
+
+		Runnable task = () -> {
+			try {
+				System.out.println(Thread.currentThread().getName() + " reached barrier");
+				barrier.await();
+
+				System.out.println(Thread.currentThread().getName() + " Continuing");
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			} catch (BrokenBarrierException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		};
+		
+		new Thread(task, "Thread-1").start();
+		new Thread(task, "Thread-2").start();
+		new Thread(task, "Thread-3").start();
+
+	}
+
+}
+
+output - 
+Thread-1 reached barrier
+Thread-3 reached barrier
+Thread-2 reached barrier
+Thread-2 Continuing
+Thread-1 Continuing
+Thread-3 Continuing
+
+
+
+12. Why is it Called "Cyclic"?
+
+Because it can be reused.
+
+Example:
+
+Round 1
+
+
+T1 ─┐
+T2 ─┼─ Barrier
+T3 ─┘
+
+
+All continue
+
+
+Barrier resets
+       ↓
+
+
+Round 2
+
+
+T1 ─┐
+T2 ─┼─ Barrier
+T3 ─┘
+
+Unlike:
+
+CountDownLatch
+
+which cannot be reset.
+
+
+14. Real Example: Parallel Calculation
+
+Suppose a large calculation is divided into phases.
+
+Phase 1
+
+
+Thread-1 → Calculate Part A
+Thread-2 → Calculate Part B
+Thread-3 → Calculate Part C
+
+
+            ↓
+
+
+       CyclicBarrier
+
+
+            ↓
+
+
+Phase 2
+
+
+Combine Results
+
+Example:
+
+CyclicBarrier barrier =
+        new CyclicBarrier(
+                3,
+                () -> System.out.println(
+                        "Phase completed"
+                )
+        );
+
+Each worker:
+
+calculatePart();
+
+
+barrier.await();
+
+
+calculateNextPart();
+
+This ensures:
+
+Nobody starts Phase 2
+until everyone finishes Phase 1
+
+
+
+15. What Happens If One Thread Fails?
+
+This is important.
+
+Suppose:
+
+T1 → waiting at barrier
+T2 → waiting at barrier
+T3 → crashes ❌
+
+The other threads cannot normally proceed through that barrier.
+
+The barrier can become:
+
+Broken
+
+Waiting threads may receive:
+
+BrokenBarrierException
+
+Therefore handle exceptions properly.
+
+Part 3: Semaphore
+16. What is a Semaphore?
+
+A semaphore controls how many threads can access a resource simultaneously.
 
 
 
@@ -11375,4 +11623,3 @@ Technical Decisions
 Leadership
 
 Your answers should demonstrate all of these levels.
-
